@@ -1,0 +1,344 @@
+/* Daily Hub — Tasks, Goals & AI */
+
+:root {
+  --bg: #0f0e0c;
+  --surface: #1a1816;
+  --surface-hover: #22201d;
+  --border: #2d2a26;
+  --text: #e8e4df;
+  --text-muted: #8c8780;
+  --accent: #c9a227;
+  --accent-dim: #9a7b1a;
+  --success: #6b9080;
+  --danger: #b56576;
+  --radius: 12px;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+}
+
+.hub {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  min-height: 100vh;
+}
+
+/* Header */
+.hub-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.date-time {
+  flex: 1;
+}
+
+.date-text {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.time-text {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  color: var(--text-muted);
+}
+
+.day-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.btn-icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn-icon:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* Settings */
+.settings-panel {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.settings-panel.hidden {
+  display: none;
+}
+
+.settings-panel label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.settings-panel input {
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.btn-small {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Main grid */
+.hub-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 700px) {
+  .hub-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.card h2 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+/* Weather */
+.weather-content {
+  min-height: 4rem;
+}
+
+.weather-loading,
+.weather-details {
+  margin: 0;
+}
+
+.weather-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.weather-details.hidden {
+  display: none;
+}
+
+.weather-temp {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.weather-desc {
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.weather-meta {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.weather-loading.hidden {
+  display: none;
+}
+
+/* Todos & Goals */
+.todo-form,
+.goal-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.todo-form input,
+.goal-form input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.todo-form input::placeholder,
+.goal-form input::placeholder {
+  color: var(--text-muted);
+}
+
+.todo-list,
+.goal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.todo-item,
+.goal-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.todo-item:last-child,
+.goal-item:last-child {
+  border-bottom: none;
+}
+
+.todo-item.done .todo-label,
+.goal-item.done .goal-label {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.todo-label,
+.goal-label {
+  flex: 1;
+  word-break: break-word;
+}
+
+.todo-item input[type="checkbox"],
+.goal-item input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.btn-remove {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.btn-remove:hover {
+  color: var(--danger);
+  background: rgba(181, 101, 118, 0.15);
+}
+
+/* Buttons */
+.btn {
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-weight: 500;
+  color: var(--bg);
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn:hover {
+  background: var(--accent-dim);
+}
+
+.btn-secondary {
+  margin-top: 0.75rem;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* AI card */
+.ai-card {
+  grid-column: 1 / -1;
+}
+
+.ai-hint {
+  margin: -0.5rem 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.ai-content {
+  min-height: 3rem;
+}
+
+.ai-loading,
+.ai-suggestion {
+  margin: 0;
+}
+
+.ai-suggestion {
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+}
+
+.ai-suggestion.hidden {
+  display: none;
+}
+
+.ai-loading.hidden {
+  display: none;
+}

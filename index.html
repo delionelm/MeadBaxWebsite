@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Hub — Tasks, Goals & AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="hub">
+    <header class="hub-header">
+      <div class="date-time">
+        <h1 class="date-text" id="dateText">—</h1>
+        <p class="time-text" id="timeText">—</p>
+        <p class="day-meta" id="dayMeta">—</p>
+      </div>
+      <button type="button" class="btn-icon btn-settings" id="btnSettings" title="Settings">⚙</button>
+    </header>
+
+    <div class="settings-panel hidden" id="settingsPanel">
+      <label>OpenAI API key (optional, for AI suggestions)</label>
+      <input type="password" id="openaiKey" placeholder="sk-..." autocomplete="off" />
+      <button type="button" class="btn btn-small" id="saveSettings">Save</button>
+    </div>
+
+    <main class="hub-main">
+      <section class="card weather-card">
+        <h2>Weather</h2>
+        <div class="weather-content" id="weatherContent">
+          <p class="weather-loading" id="weatherLoading">Loading…</p>
+          <div class="weather-details hidden" id="weatherDetails">
+            <span class="weather-temp" id="weatherTemp">—</span>
+            <span class="weather-desc" id="weatherDesc">—</span>
+            <span class="weather-meta" id="weatherMeta">—</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card todos-card">
+        <h2>Tasks</h2>
+        <form class="todo-form" id="todoForm">
+          <input type="text" id="todoInput" placeholder="Add a task…" autocomplete="off" />
+          <button type="submit" class="btn">Add</button>
+        </form>
+        <ul class="todo-list" id="todoList"></ul>
+      </section>
+
+      <section class="card goals-card">
+        <h2>Goals</h2>
+        <form class="goal-form" id="goalForm">
+          <input type="text" id="goalInput" placeholder="Add a goal…" autocomplete="off" />
+          <button type="submit" class="btn">Add</button>
+        </form>
+        <ul class="goal-list" id="goalList"></ul>
+      </section>
+
+      <section class="card ai-card">
+        <h2>Today’s suggestion</h2>
+        <p class="ai-hint">Based on your tasks, goals, weather & date.</p>
+        <div class="ai-content" id="aiContent">
+          <p class="ai-loading" id="aiLoading">Thinking…</p>
+          <p class="ai-suggestion hidden" id="aiSuggestion">—</p>
+        </div>
+        <button type="button" class="btn btn-secondary" id="refreshAi">Refresh suggestion</button>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
