@@ -14,11 +14,10 @@ A single-page hub that tracks your **tasks** and **goals**, shows **weather** an
 
 ## Run locally
 
-1. Open the project folder.
-2. Serve the files over HTTP (required for geolocation and external APIs). For example:
+1. From the repo root, serve over HTTP (required for geolocation and external APIs). For example:
    - **Python 3**: `python -m http.server 8000`
    - **Node**: `npx serve .`
-3. Open `http://localhost:8000` (or the port you used) in your browser.
+2. Open `http://localhost:8000/hub` (or the port you used) in your browser.
 
 ## Optional: OpenAI for AI suggestions
 
@@ -28,10 +27,10 @@ A single-page hub that tracks your **tasks** and **goals**, shows **weather** an
 
 Without a key, the hub still gives suggestions using your tasks, goals, and weather.
 
-## Files
+## Files (in `hub/`)
 
 - `index.html` — Layout and sections.
 - `styles.css` — Styling.
 - `app.js` — Date/time, weather fetch, todos, goals, and AI/built-in suggestion logic.
 
-No build step; use any static host to deploy.
+No build step; use any static host to deploy (serve the `hub` folder).
