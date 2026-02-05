@@ -42,21 +42,21 @@
       <section class="panel active" id="panel-notes" data-panel="notes">
         <div class="panel-header">
           <h2>Notes</h2>
-          <p>Capture ideas, meeting notes, and quick reminders.</p>
+          <p>Log your notes by section so you can easily look back at what matters.</p>
         </div>
-        <div class="panel-body grid-2">
+        <div class="panel-body">
           <div class="card">
             <h3>New note</h3>
             <form id="noteForm" class="stack">
+              <input type="text" id="noteSection" placeholder="Section (e.g. Work, Personal, Ideas)" />
               <input type="text" id="noteTitle" placeholder="Note title" />
-              <textarea id="noteBody" rows="6" placeholder="Write something..."></textarea>
+              <textarea id="noteBody" rows="5" placeholder="Write something..."></textarea>
               <button type="submit" class="btn">Save note</button>
             </form>
           </div>
-          <div class="card">
-            <h3>Saved notes</h3>
-            <ul class="list" id="noteList"></ul>
-          </div>
+        </div>
+        <div class="panel-body notes-sections" id="notesBySection">
+          <!-- Section rows rendered by app.js -->
         </div>
       </section>
 
@@ -116,19 +116,28 @@
       </section>
     </main>
 
-    <section class="ai-dock" aria-live="polite">
-      <div class="ai-header">
-        <div>
-          <p class="ai-title">AI Assistant</p>
-          <p class="ai-subtitle">Ask anything or say a command</p>
-        </div>
-        <button type="button" class="btn-icon ai-mic" id="aiMic" title="Start voice command">🎙️</button>
+    <section class="ai-dock" id="aiDock" aria-live="polite">
+      <div class="ai-dock-tab" id="aiDockTab" title="Open AI Assistant" aria-label="Open AI Assistant">
+        <span class="ai-dock-tab-icon" aria-hidden="true">◆</span>
+        <span class="ai-dock-tab-label">AI</span>
       </div>
-      <div class="ai-messages" id="aiMessages"></div>
-      <form class="ai-input" id="aiForm">
-        <input type="text" id="aiInput" placeholder="Try: Add meeting on Feb 7 at 3pm" />
-        <button type="submit" class="btn">Send</button>
-      </form>
+      <div class="ai-dock-content">
+        <div class="ai-header">
+          <div>
+            <p class="ai-title">AI Assistant</p>
+            <p class="ai-subtitle">Ask anything or say a command</p>
+          </div>
+          <div class="ai-header-actions">
+            <button type="button" class="btn-icon ai-mic" id="aiMic" title="Start voice command">🎙️</button>
+            <button type="button" class="btn-icon ai-dock-collapse" id="aiDockCollapse" title="Minimize to side">◀</button>
+          </div>
+        </div>
+        <div class="ai-messages" id="aiMessages"></div>
+        <form class="ai-input" id="aiForm">
+          <input type="text" id="aiInput" placeholder="Try: Add meeting on Feb 7 at 3pm" />
+          <button type="submit" class="btn">Send</button>
+        </form>
+      </div>
     </section>
   </div>
   <script src="app.js"></script>

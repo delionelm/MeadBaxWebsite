@@ -150,14 +150,16 @@ function setNotes(notes) {
   renderNotes();
 }
 
-function addNote(title, body) {
+function addNote(title, body, section) {
   const t = String(title || '').trim() || 'Untitled note';
   const b = String(body || '').trim();
+  const sec = String(section || '').trim() || 'General';
   const notes = getNotes();
   notes.unshift({
     id: Date.now(),
     title: t,
     body: b,
+    section: sec,
     createdAt: new Date().toISOString(),
   });
   setNotes(notes);
@@ -167,25 +169,105 @@ function removeNote(id) {
   setNotes(getNotes().filter((note) => note.id !== id));
 }
 
-function renderNotes() {
-  const list = document.getElementById('noteList');
-  if (!list) return;
+function updateNote(id, title, body, section) {
+  const t = String(title || '').trim() || 'Untitled note';
+  const b = String(body || '').trim();
+  const sec = String(section || '').trim() || 'General';
   const notes = getNotes();
-  list.innerHTML = notes
+  const idx = notes.findIndex((n) => n.id === id);
+  if (idx === -1) return;
+  notes[idx] = { ...notes[idx], title: t, body: b, section: sec };
+  setNotes(notes);
+}
+
+function renderNotes() {
+  const container = document.getElementById('notesBySection');
+  if (!container) return;
+  const notes = getNotes().map((n) => ({
+    ...n,
+    section: (n.section && String(n.section).trim()) || 'General',
+  }));
+  const bySection = {};
+  notes.forEach((note) => {
+    const sec = note.section;
+    if (!bySection[sec]) bySection[sec] = [];
+    bySection[sec].push(note);
+  });
+  const sectionNames = Object.keys(bySection).sort((a, b) => {
+    if (a === 'General') return -1;
+    if (b === 'General') return 1;
+    return a.localeCompare(b);
+  });
+
+  container.innerHTML = sectionNames
     .map(
-      (note) => `
-      <li class="list-item">
-        <h4>${escapeHtml(note.title)}</h4>
-        <p>${escapeHtml(note.body || 'No details yet.')}</p>
-        <span class="meta">${new Date(note.createdAt).toLocaleString()}</span>
-        <button class="btn-remove" data-id="${note.id}">Delete</button>
-      </li>
+      (sec) => `
+      <div class="notes-section-row">
+        <h3 class="notes-section-title">${escapeHtml(sec)}</h3>
+        <ul class="list">
+          ${bySection[sec]
+            .map(
+              (note) => `
+            <li class="list-item note-item" data-id="${note.id}">
+              <div class="note-view">
+                <h4>${escapeHtml(note.title)}</h4>
+                <p>${escapeHtml(note.body || 'No details yet.')}</p>
+                <span class="meta">${new Date(note.createdAt).toLocaleString()}</span>
+                <div class="note-actions">
+                  <button type="button" class="btn-edit" data-id="${note.id}">Edit</button>
+                  <button type="button" class="btn-remove" data-id="${note.id}">Delete</button>
+                </div>
+              </div>
+            </li>
+          `
+            )
+            .join('')}
+        </ul>
+      </div>
     `
     )
     .join('');
 
-  list.querySelectorAll('.btn-remove').forEach((btn) => {
-    btn.addEventListener('click', () => removeNote(Number(btn.dataset.id)));
+  container.querySelectorAll('.btn-remove').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeNote(Number(btn.dataset.id));
+    });
+  });
+
+  container.querySelectorAll('.btn-edit').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.id);
+      const note = getNotes().find((n) => n.id === id);
+      if (!note) return;
+      const li = btn.closest('.note-item');
+      if (!li) return;
+      li.classList.add('editing');
+      li.innerHTML = `
+        <form class="note-edit-form stack">
+          <input type="text" class="note-edit-section" value="${escapeHtml(note.section || 'General')}" placeholder="Section" />
+          <input type="text" class="note-edit-title" value="${escapeHtml(note.title)}" placeholder="Title" />
+          <textarea class="note-edit-body" rows="4" placeholder="Body">${escapeHtml(note.body || '')}</textarea>
+          <div class="note-edit-actions">
+            <button type="submit" class="btn">Save</button>
+            <button type="button" class="btn-cancel-edit">Cancel</button>
+          </div>
+        </form>
+      `;
+      const form = li.querySelector('.note-edit-form');
+      const cancelBtn = li.querySelector('.btn-cancel-edit');
+      form.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        updateNote(
+          id,
+          form.querySelector('.note-edit-title').value,
+          form.querySelector('.note-edit-body').value,
+          form.querySelector('.note-edit-section').value
+        );
+      });
+      cancelBtn.addEventListener('click', () => renderNotes());
+    });
   });
 }
 
@@ -339,9 +421,9 @@ function parseTimeFromText(text) {
 
 function handleAiCommand(text) {
   const lower = text.toLowerCase();
-  if (lower.includes('add note') || lower.startsWith('note')) {
+  if (lower.includes('add note') || lower.startsWith('note ')) {
     const noteText = text.replace(/add note/i, '').trim() || text;
-    addNote('AI Note', noteText);
+    addNote('AI Note', noteText, 'General');
     addAiMessage('Added a new note for you.');
     return;
   }
@@ -359,8 +441,34 @@ function handleAiCommand(text) {
   }
 
   addAiMessage(
-    'I can add notes or calendar events. Try: “Add note call John” or “Schedule meeting on Feb 7 at 3pm.”'
+    'I can add notes or calendar events. Try: “Add note idea for project” or “Schedule meeting on Feb 7 at 3pm”.'
   );
+}
+
+const AI_DOCK_COLLAPSED_KEY = 'hub_ai_dock_collapsed';
+
+function initAiDockToggle() {
+  const dock = document.getElementById('aiDock');
+  const tab = document.getElementById('aiDockTab');
+  const collapseBtn = document.getElementById('aiDockCollapse');
+  if (!dock) return;
+
+  function setCollapsed(collapsed) {
+    dock.classList.toggle('collapsed', collapsed);
+    try {
+      localStorage.setItem(AI_DOCK_COLLAPSED_KEY, collapsed ? '1' : '0');
+    } catch (_) {}
+  }
+
+  const saved = localStorage.getItem(AI_DOCK_COLLAPSED_KEY);
+  if (saved === '1') setCollapsed(true);
+
+  if (collapseBtn) {
+    collapseBtn.addEventListener('click', () => setCollapsed(true));
+  }
+  if (tab) {
+    tab.addEventListener('click', () => setCollapsed(false));
+  }
 }
 
 function initAiAssistant() {
@@ -411,13 +519,15 @@ function initForms() {
   const eventTitle = document.getElementById('eventTitle');
   const eventDate = document.getElementById('eventDate');
   const eventTime = document.getElementById('eventTime');
+  const noteSection = document.getElementById('noteSection');
 
   if (noteForm) {
     noteForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      addNote(noteTitle.value, noteBody.value);
+      addNote(noteTitle.value, noteBody.value, noteSection ? noteSection.value : '');
       noteTitle.value = '';
       noteBody.value = '';
+      if (noteSection) noteSection.value = '';
     });
   }
 
@@ -443,6 +553,7 @@ function init() {
   renderEmails();
   renderEvents();
   initForms();
+  initAiDockToggle();
   initAiAssistant();
   addAiMessage('Hi! I can add notes or calendar events for you.');
 }
