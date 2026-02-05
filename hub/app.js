@@ -3,6 +3,8 @@
 const STORAGE_KEYS = {
   notes: 'hub_notes',
   events: 'hub_events',
+  location: 'hub_location',
+  units: 'hub_units',
 };
 
 const EMAIL_SAMPLE = [
@@ -39,28 +41,49 @@ function updateDateTime() {
 }
 
 // ——— Weather (Open-Meteo, no API key) ———
-async function fetchWeather() {
+async function fetchWeather(options = {}) {
   const loading = document.getElementById('weatherLoading');
   const details = document.getElementById('weatherDetails');
   const tempEl = document.getElementById('weatherTemp');
   const descEl = document.getElementById('weatherDesc');
   const metaEl = document.getElementById('weatherMeta');
   const extraEl = document.getElementById('weatherExtra');
+  const cityEl = document.getElementById('weatherCity');
+  const highLowEl = document.getElementById('weatherHighLow');
+  const hourlyList = document.getElementById('hourlyList');
+  const dailyList = document.getElementById('dailyList');
+  const feelsLikeEl = document.getElementById('feelsLike');
+  const windSpeedEl = document.getElementById('windSpeed');
+  const uvIndexEl = document.getElementById('uvIndex');
+  const sunriseEl = document.getElementById('sunriseTime');
+  const sunsetEl = document.getElementById('sunsetTime');
+  const precipEl = document.getElementById('precipSum');
+  const aqiScoreEl = document.getElementById('aqiScore');
+  const aqiLabelEl = document.getElementById('aqiLabel');
+  const aqiMetaEl = document.getElementById('aqiMeta');
 
   const defaultLat = 38.8048;
   const defaultLon = -77.0469;
+  const units = getUnits();
 
   function success(pos) {
-    fetchWithCoords(pos.coords.latitude, pos.coords.longitude);
+    const label = 'Current location';
+    saveLocation({ label, lat: pos.coords.latitude, lon: pos.coords.longitude });
+    fetchWithCoords(pos.coords.latitude, pos.coords.longitude, label);
   }
 
   function error() {
-    fetchWithCoords(defaultLat, defaultLon);
+    const saved = getSavedLocation();
+    if (saved) {
+      fetchWithCoords(saved.lat, saved.lon, saved.label);
+      return;
+    }
+    fetchWithCoords(defaultLat, defaultLon, 'Alexandria, VA');
   }
 
-  async function fetchWithCoords(lat, lon) {
+  async function fetchWithCoords(lat, lon, label = 'Current location') {
     try {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,apparent_temperature&hourly=temperature_2m,weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,precipitation_sum&temperature_unit=${units.temp}&windspeed_unit=${units.wind}&precipitation_unit=${units.precip}&timezone=auto`;
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) throw new Error(data.reason || 'Weather fetch failed');
@@ -68,13 +91,46 @@ async function fetchWeather() {
       const cur = data.current;
       const temp = Math.round(cur.temperature_2m);
       const desc = weatherCodeToDesc(cur.weather_code);
-      const meta = `Humidity ${cur.relative_humidity_2m}% · Wind ${cur.wind_speed_10m} km/h`;
+      const meta = `Humidity ${cur.relative_humidity_2m}% · Wind ${Math.round(cur.wind_speed_10m)} km/h`;
+      const timeZone = data.timezone;
+      const offsetSeconds = data.utc_offset_seconds;
 
       if (loading) loading.classList.add('hidden');
       if (details) details.classList.remove('hidden');
-      if (tempEl) tempEl.textContent = `${temp}°C`;
+      if (tempEl) tempEl.textContent = `${temp}°${units.temp === 'fahrenheit' ? 'F' : 'C'}`;
       if (descEl) descEl.textContent = desc;
       if (metaEl) metaEl.textContent = meta;
+      if (cityEl) cityEl.textContent = label;
+      if (highLowEl) {
+        const high = Math.round(data.daily.temperature_2m_max[0]);
+        const low = Math.round(data.daily.temperature_2m_min[0]);
+        highLowEl.textContent = `H:${high}°  L:${low}°`;
+      }
+      if (feelsLikeEl) {
+        feelsLikeEl.textContent = `${Math.round(cur.apparent_temperature)}°${
+          units.temp === 'fahrenheit' ? 'F' : 'C'
+        }`;
+      }
+      if (windSpeedEl) {
+        windSpeedEl.textContent = `${Math.round(cur.wind_speed_10m)} ${
+          units.wind === 'mph' ? 'mph' : 'km/h'
+        }`;
+      }
+      if (uvIndexEl) uvIndexEl.textContent = `${Math.round(data.daily.uv_index_max[0])}`;
+      const sunriseText = formatTimeInZone(data.daily.sunrise[0], timeZone, offsetSeconds);
+      const sunsetText = formatTimeInZone(data.daily.sunset[0], timeZone, offsetSeconds);
+      if (sunriseEl) {
+        sunriseEl.textContent = sunriseText;
+      }
+      if (sunsetEl) {
+        sunsetEl.textContent = sunsetText;
+      }
+      if (precipEl) {
+        const precipValue = data.daily.precipitation_sum[0];
+        precipEl.textContent = `${Math.round(precipValue * 10) / 10} ${
+          units.precip === 'inch' ? 'in' : 'mm'
+        }`;
+      }
       if (extraEl) {
         extraEl.textContent = `Last updated ${new Date().toLocaleTimeString([], {
           hour: '2-digit',
@@ -83,13 +139,30 @@ async function fetchWeather() {
       }
 
       window.__hubWeather = { temp, desc, code: cur.weather_code };
+      window.__hubWeatherTimezone = { timeZone, offsetSeconds };
+      renderHourly(data.hourly, hourlyList, timeZone, offsetSeconds, {
+        sunrise: sunriseText,
+        sunset: sunsetText,
+      });
+      renderDaily(data.daily, dailyList, units);
+      fetchAirQuality(lat, lon, aqiScoreEl, aqiLabelEl, aqiMetaEl);
     } catch (e) {
       if (loading) loading.textContent = 'Weather unavailable';
       if (loading) loading.classList.remove('hidden');
       if (details) details.classList.add('hidden');
       if (extraEl) extraEl.textContent = '';
+      if (hourlyList) hourlyList.innerHTML = '';
+      if (dailyList) dailyList.innerHTML = '';
+      if (aqiScoreEl) aqiScoreEl.textContent = '—';
+      if (aqiLabelEl) aqiLabelEl.textContent = '—';
+      if (aqiMetaEl) aqiMetaEl.textContent = '';
       window.__hubWeather = null;
     }
+  }
+
+  if (options.useSavedOnly) {
+    error();
+    return;
   }
 
   if (navigator.geolocation) {
@@ -115,6 +188,255 @@ function weatherCodeToDesc(code) {
     95: 'Thunderstorm',
   };
   return map[code] || 'Unknown';
+}
+
+function renderHourly(hourly, container, timeZone, offsetSeconds, sunTimes = {}) {
+  if (!container || !hourly?.time) return;
+  const nowUtc = Date.now();
+  const zoneHourStartUtc = getZoneHourStartUtc(nowUtc, offsetSeconds);
+  const items = hourly.time.map((time, idx) => ({
+    utcMillis: parseLocalTimeToUtcMillis(time, offsetSeconds),
+    temp: hourly.temperature_2m[idx],
+  }));
+  const startIndex = items.findIndex((entry) => entry.utcMillis >= zoneHourStartUtc);
+  const future = (startIndex >= 0 ? items.slice(startIndex) : items).slice(0, 24);
+
+  if (!future.length) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const specials = [];
+  if (sunTimes.sunrise) {
+    specials.push({ label: 'Sunrise', time: sunTimes.sunrise, type: 'sun' });
+  }
+  if (sunTimes.sunset) {
+    specials.push({ label: 'Sunset', time: sunTimes.sunset, type: 'sun' });
+  }
+
+  container.innerHTML = future
+    .map((entry, idx) => {
+      const label = idx === 0 ? 'Now' : formatHourLabel(entry.utcMillis, timeZone);
+      return `
+      <div class="hourly-item">
+        <span>${label}</span>
+        <strong>${Math.round(entry.temp)}°</strong>
+      </div>
+    `;
+    })
+    .concat(
+      specials.map(
+        (item) => `
+      <div class="hourly-item hourly-sun">
+        <span>${item.label}</span>
+        <strong>${item.time}</strong>
+      </div>
+    `
+      )
+    )
+    .join('');
+}
+
+function renderDaily(daily, container, units) {
+  if (!container || !daily?.time) return;
+  const dates = daily.time.map((date, idx) => ({
+    date,
+    index: idx,
+  }));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const startIndex = Math.max(
+    0,
+    dates.findIndex((item) => item.date >= todayStr)
+  );
+  const slice = dates.slice(startIndex, startIndex + 10);
+
+  container.innerHTML = slice
+    .map(({ date, index }) => {
+      const high = Math.round(daily.temperature_2m_max[index]);
+      const low = Math.round(daily.temperature_2m_min[index]);
+      const label = new Date(date).toLocaleDateString(undefined, { weekday: 'short' });
+      return `
+        <li class="list-item">
+          <h4>${label}</h4>
+          <p>${weatherCodeToDesc(daily.weather_code[index])}</p>
+          <span class="meta">H:${high}° L:${low}°</span>
+        </li>
+      `;
+    })
+    .join('');
+}
+
+async function fetchAirQuality(lat, lon, scoreEl, labelEl, metaEl) {
+  if (!scoreEl || !labelEl || !metaEl) return;
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10,ozone`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error('Air quality unavailable');
+    const aqi = Math.round(data.current.us_aqi);
+    const { label, color } = aqiLabel(aqi);
+    scoreEl.textContent = `${aqi}`;
+    scoreEl.style.color = color;
+    labelEl.textContent = label;
+    metaEl.textContent = `PM2.5 ${Math.round(data.current.pm2_5)} · PM10 ${Math.round(
+      data.current.pm10
+    )}`;
+  } catch (err) {
+    scoreEl.textContent = '—';
+    labelEl.textContent = 'Unavailable';
+    metaEl.textContent = '';
+  }
+}
+
+function aqiLabel(value) {
+  if (value <= 50) return { label: 'Good', color: '#2f8f6f' };
+  if (value <= 100) return { label: 'Moderate', color: '#d6a92c' };
+  if (value <= 150) return { label: 'Unhealthy for Sensitive Groups', color: '#e0762a' };
+  if (value <= 200) return { label: 'Unhealthy', color: '#c65353' };
+  return { label: 'Very Unhealthy', color: '#7c4aa0' };
+}
+
+function saveLocation(loc) {
+  localStorage.setItem(STORAGE_KEYS.location, JSON.stringify(loc));
+}
+
+function getSavedLocation() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.location);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getUnits() {
+  const saved = localStorage.getItem(STORAGE_KEYS.units);
+  if (saved === 'celsius') {
+    return { temp: 'celsius', wind: 'kmh', precip: 'mm' };
+  }
+  return { temp: 'fahrenheit', wind: 'mph', precip: 'inch' };
+}
+
+async function searchLocation(query, count = 6) {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+    query
+  )}&count=${count}&language=en&format=json`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!data.results?.length) return null;
+  return data.results.map((result) => ({
+    label: `${result.name}${result.admin1 ? `, ${result.admin1}` : ''}${
+      result.country ? `, ${result.country}` : ''
+    }`,
+    lat: result.latitude,
+    lon: result.longitude,
+  }));
+}
+
+function initLocationControls() {
+  const input = document.getElementById('locationInput');
+  const searchBtn = document.getElementById('locationSearch');
+  const useBtn = document.getElementById('locationUseDevice');
+  const suggestions = document.getElementById('locationSuggestions');
+  let debounceTimer = null;
+  let lastResults = [];
+
+  const saved = getSavedLocation();
+  if (saved && input) {
+    input.value = saved.label;
+  }
+
+  const closeSuggestions = () => {
+    if (suggestions) {
+      suggestions.innerHTML = '';
+      suggestions.classList.add('hidden');
+    }
+  };
+
+  const renderSuggestions = (items) => {
+    if (!suggestions) return;
+    lastResults = items || [];
+    if (!items?.length) {
+      closeSuggestions();
+      return;
+    }
+    suggestions.innerHTML = items
+      .map(
+        (item) =>
+          `<button class="suggestion-item" data-lat="${item.lat}" data-lon="${item.lon}" data-label="${item.label}">${item.label}</button>`
+      )
+      .join('');
+    suggestions.classList.remove('hidden');
+    suggestions.querySelectorAll('.suggestion-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const lat = Number(btn.dataset.lat);
+        const lon = Number(btn.dataset.lon);
+        const label = btn.dataset.label;
+        saveLocation({ lat, lon, label });
+        if (input) input.value = label;
+        closeSuggestions();
+        fetchWeather();
+      });
+    });
+  };
+
+  if (input) {
+    input.addEventListener('input', () => {
+      const query = input.value.trim();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      if (!query || query.length < 2) {
+        closeSuggestions();
+        return;
+      }
+      debounceTimer = setTimeout(async () => {
+        const results = await searchLocation(query, 6);
+        renderSuggestions(results || []);
+        if (results && results.length === 1) {
+          const single = results[0];
+          saveLocation(single);
+          if (input) input.value = single.label;
+          closeSuggestions();
+          fetchWeather({ useSavedOnly: true });
+        }
+      }, 250);
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      if (lastResults.length) {
+        const selected = lastResults[0];
+        saveLocation(selected);
+        if (input) input.value = selected.label;
+        closeSuggestions();
+        fetchWeather({ useSavedOnly: true });
+      }
+    });
+    input.addEventListener('blur', () => {
+      setTimeout(closeSuggestions, 200);
+    });
+  }
+
+  if (searchBtn && input) {
+    searchBtn.addEventListener('click', async () => {
+      const query = input.value.trim();
+      if (!query) return;
+      const results = await searchLocation(query, 1);
+      const result = results?.[0];
+      if (result) {
+        saveLocation(result);
+        closeSuggestions();
+        fetchWeather({ useSavedOnly: true });
+      }
+    });
+  }
+
+  if (useBtn) {
+    useBtn.addEventListener('click', () => {
+      localStorage.removeItem(STORAGE_KEYS.location);
+      closeSuggestions();
+      fetchWeather();
+    });
+  }
 }
 
 // ——— Navigation ———
@@ -476,6 +798,7 @@ function formatEventDate(dateStr, timeStr) {
   return dateText;
 }
 
+<<<<<<< HEAD
 function initCalendarNav() {
   const prev = document.getElementById('calendarPrev');
   const next = document.getElementById('calendarNext');
@@ -493,6 +816,57 @@ function initCalendarNav() {
   }
 }
 
+=======
+function parseLocalTimeToUtcMillis(localTime, offsetSeconds) {
+  if (!localTime || typeof offsetSeconds !== 'number') {
+    return new Date(localTime).getTime();
+  }
+  const [datePart, timePart] = localTime.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute] = timePart.split(':').map(Number);
+  const utcMillis = Date.UTC(year, month - 1, day, hour, minute) - offsetSeconds * 1000;
+  return utcMillis;
+}
+
+function formatHourLabel(utcMillis, timeZone) {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      timeZone: timeZone || undefined,
+    }).format(new Date(utcMillis));
+  } catch {
+    return new Date(utcMillis).toLocaleTimeString([], { hour: 'numeric' });
+  }
+}
+
+function formatTimeInZone(localTimeString, timeZone, offsetSeconds) {
+  const utcMillis = parseLocalTimeToUtcMillis(localTimeString, offsetSeconds);
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: timeZone || undefined,
+    }).format(new Date(utcMillis));
+  } catch {
+    return new Date(utcMillis).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+}
+
+function getZoneHourStartUtc(nowUtcMillis, offsetSeconds) {
+  if (typeof offsetSeconds !== 'number') {
+    const now = new Date(nowUtcMillis);
+    now.setMinutes(0, 0, 0);
+    return now.getTime();
+  }
+  const zoneNow = new Date(nowUtcMillis + offsetSeconds * 1000);
+  const year = zoneNow.getUTCFullYear();
+  const month = zoneNow.getUTCMonth();
+  const day = zoneNow.getUTCDate();
+  const hour = zoneNow.getUTCHours();
+  return Date.UTC(year, month, day, hour) - offsetSeconds * 1000;
+}
+
+>>>>>>> b97d198 (Build full weather dashboard with location search.)
 // ——— AI Assistant ———
 function addAiMessage(text, type = 'assistant') {
   const list = document.getElementById('aiMessages');
@@ -687,7 +1061,9 @@ function init() {
   updateDateTime();
   setInterval(updateDateTime, 1000);
   initNav();
+  initLocationControls();
   fetchWeather();
+  scheduleHourlyWeatherRefresh();
   renderNotes();
   renderEmails();
   renderCalendar();
@@ -700,3 +1076,23 @@ function init() {
 }
 
 init();
+
+function scheduleHourlyWeatherRefresh() {
+  const now = new Date();
+  const zone = window.__hubWeatherTimezone;
+  const offsetSeconds = zone?.offsetSeconds;
+  let delay = 60 * 60 * 1000;
+  if (typeof offsetSeconds === 'number') {
+    const nowUtc = Date.now();
+    const zoneHourStart = getZoneHourStartUtc(nowUtc, offsetSeconds);
+    delay = zoneHourStart + 60 * 60 * 1000 - nowUtc;
+  } else {
+    const nextHour = new Date(now);
+    nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+    delay = nextHour - now;
+  }
+  setTimeout(() => {
+    fetchWeather();
+    setInterval(fetchWeather, 60 * 60 * 1000);
+  }, delay);
+}

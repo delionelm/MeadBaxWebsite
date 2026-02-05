@@ -109,22 +109,89 @@
         </div>
       </section>
 
-      <section class="panel" id="panel-weather" data-panel="weather">
-        <div class="panel-header">
-          <h2>Weather</h2>
-          <p>Full weather view for your selected area.</p>
+      <section class="panel weather-panel" id="panel-weather" data-panel="weather">
+        <div class="panel-header weather-header">
+          <div>
+            <h2>Weather</h2>
+            <p>Live conditions and a full forecast for your location.</p>
+          </div>
+          <div class="weather-location">
+            <div class="location-search">
+              <input type="text" id="locationInput" placeholder="Enter city or ZIP" autocomplete="off" />
+              <div class="location-suggestions hidden" id="locationSuggestions"></div>
+            </div>
+            <button type="button" class="btn" id="locationSearch">Search</button>
+            <button type="button" class="btn btn-secondary" id="locationUseDevice">Use my location</button>
+          </div>
         </div>
-        <div class="panel-body">
-          <div class="card weather-card">
+        <div class="panel-body weather-grid">
+          <div class="card weather-hero">
             <div class="weather-content" id="weatherContent">
               <p class="weather-loading" id="weatherLoading">Loading…</p>
               <div class="weather-details hidden" id="weatherDetails">
-                <span class="weather-temp" id="weatherTemp">—</span>
-                <span class="weather-desc" id="weatherDesc">—</span>
-                <span class="weather-meta" id="weatherMeta">—</span>
+                <div>
+                  <p class="weather-city" id="weatherCity">—</p>
+                  <p class="weather-desc" id="weatherDesc">—</p>
+                  <p class="weather-meta" id="weatherMeta">—</p>
+                </div>
+                <div class="weather-temp-block">
+                  <span class="weather-temp" id="weatherTemp">—</span>
+                  <span class="weather-high-low" id="weatherHighLow">—</span>
+                </div>
               </div>
             </div>
             <div class="weather-extra" id="weatherExtra"></div>
+          </div>
+
+          <div class="card">
+            <h3>Hourly forecast</h3>
+            <div class="hourly-list" id="hourlyList"></div>
+          </div>
+
+          <div class="card">
+            <h3>10-day forecast</h3>
+            <ul class="list" id="dailyList"></ul>
+          </div>
+
+          <div class="card">
+            <h3>Air quality</h3>
+            <div class="aqi-block">
+              <div class="aqi-score" id="aqiScore">—</div>
+              <div>
+                <p class="aqi-label" id="aqiLabel">—</p>
+                <p class="aqi-meta" id="aqiMeta">—</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card weather-metrics">
+            <h3>Details</h3>
+            <div class="metrics-grid">
+              <div class="metric">
+                <span>Feels like</span>
+                <strong id="feelsLike">—</strong>
+              </div>
+              <div class="metric">
+                <span>Wind</span>
+                <strong id="windSpeed">—</strong>
+              </div>
+              <div class="metric">
+                <span>UV Index</span>
+                <strong id="uvIndex">—</strong>
+              </div>
+              <div class="metric">
+                <span>Sunrise</span>
+                <strong id="sunriseTime">—</strong>
+              </div>
+              <div class="metric">
+                <span>Sunset</span>
+                <strong id="sunsetTime">—</strong>
+              </div>
+              <div class="metric">
+                <span>Precipitation</span>
+                <strong id="precipSum">—</strong>
+              </div>
+            </div>
           </div>
         </div>
       </section>
