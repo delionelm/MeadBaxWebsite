@@ -76,21 +76,35 @@
       <section class="panel" id="panel-calendar" data-panel="calendar">
         <div class="panel-header">
           <h2>Calendar</h2>
-          <p>Plan your schedule and add upcoming events.</p>
+          <p>Plan your schedule. Click a day to add an event.</p>
         </div>
-        <div class="panel-body grid-2">
-          <div class="card">
-            <h3>Add event</h3>
-            <form id="eventForm" class="stack">
-              <input type="text" id="eventTitle" placeholder="Event title" />
-              <input type="date" id="eventDate" />
-              <input type="time" id="eventTime" />
-              <button type="submit" class="btn">Add to calendar</button>
-            </form>
+        <div class="panel-body">
+          <div class="calendar-card card">
+            <div class="calendar-header">
+              <button type="button" class="btn-icon calendar-nav" id="calendarPrev" title="Previous month">‹</button>
+              <h3 class="calendar-month-year" id="calendarMonthYear">—</h3>
+              <button type="button" class="btn-icon calendar-nav" id="calendarNext" title="Next month">›</button>
+            </div>
+            <div class="calendar-weekdays">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
           </div>
-          <div class="card">
-            <h3>Upcoming</h3>
-            <ul class="list" id="eventList"></ul>
+          <div class="calendar-bottom grid-2">
+            <div class="card">
+              <h3>Add event</h3>
+              <form id="eventForm" class="stack">
+                <input type="text" id="eventTitle" placeholder="Event title" />
+                <input type="date" id="eventDate" />
+                <input type="time" id="eventTime" />
+                <button type="submit" class="btn">Add to calendar</button>
+              </form>
+            </div>
+            <div class="card">
+              <h3>This Week</h3>
+              <p class="card-desc">Reminders for this week.</p>
+              <ul class="list" id="eventList"></ul>
+            </div>
           </div>
         </div>
       </section>

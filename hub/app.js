@@ -287,6 +287,8 @@ function renderEmails() {
 }
 
 // ——— Calendar ———
+let calendarViewDate = new Date();
+
 function getEvents() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.events);
@@ -296,8 +298,13 @@ function getEvents() {
   }
 }
 
+function getEventsForDate(dateStr) {
+  return getEvents().filter((e) => e.date === dateStr);
+}
+
 function setEvents(events) {
   localStorage.setItem(STORAGE_KEYS.events, JSON.stringify(events));
+  renderCalendar();
   renderEvents();
 }
 
@@ -318,21 +325,136 @@ function removeEvent(id) {
   setEvents(getEvents().filter((event) => event.id !== id));
 }
 
+function toDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calendarGrid');
+  const monthYearEl = document.getElementById('calendarMonthYear');
+  if (!grid || !monthYearEl) return;
+
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  const todayStr = toDateStr(new Date());
+
+  monthYearEl.textContent = calendarViewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const startDay = first.getDay();
+  const daysInMonth = last.getDate();
+
+  const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
+  const leadingEmpty = startDay;
+
+  grid.innerHTML = '';
+
+  for (let i = 0; i < leadingEmpty; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day calendar-day-other';
+    cell.textContent = '';
+    grid.appendChild(cell);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    const eventsOnDay = getEventsForDate(dateStr);
+    const isToday = dateStr === todayStr;
+
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day';
+    if (isToday) cell.classList.add('calendar-day-today');
+    if (eventsOnDay.length > 0) cell.classList.add('calendar-day-has-events');
+    cell.dataset.date = dateStr;
+    cell.innerHTML = `
+      <span class="calendar-day-num">${day}</span>
+      ${eventsOnDay.length > 0 ? `<span class="calendar-day-dot" title="${eventsOnDay.length} event(s)">${eventsOnDay.length}</span>` : ''}
+    `;
+    cell.addEventListener('click', () => {
+      const dateInput = document.getElementById('eventDate');
+      if (dateInput) dateInput.value = dateStr;
+    });
+    grid.appendChild(cell);
+  }
+
+  const filled = leadingEmpty + daysInMonth;
+  const trailing = totalCells - filled;
+  for (let i = 0; i < trailing; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day calendar-day-other';
+    cell.textContent = '';
+    grid.appendChild(cell);
+  }
+}
+
+function getThisWeekDateStrs() {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const start = new Date(now);
+  start.setDate(now.getDate() - dayOfWeek);
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    out.push(toDateStr(d));
+  }
+  return out;
+}
+
 function renderEvents() {
   const list = document.getElementById('eventList');
   if (!list) return;
+
+  const weekDays = getThisWeekDateStrs();
+  const todayStr = toDateStr(new Date());
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = toDateStr(tomorrow);
+
   const events = getEvents()
-    .slice()
+    .filter((e) => weekDays.includes(e.date))
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-  list.innerHTML = events
+
+  const dayLabels = {};
+  weekDays.forEach((dateStr) => {
+    if (dateStr === todayStr) dayLabels[dateStr] = 'Today';
+    else if (dateStr === tomorrowStr) dayLabels[dateStr] = 'Tomorrow';
+    else {
+      const d = new Date(dateStr);
+      dayLabels[dateStr] = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+  });
+
+  const byDay = {};
+  weekDays.forEach((dateStr) => (byDay[dateStr] = []));
+  events.forEach((e) => byDay[e.date].push(e));
+
+  list.innerHTML = weekDays
+    .filter((dateStr) => byDay[dateStr].length > 0)
     .map(
-      (event) => `
-      <li class="list-item">
-        <h4>${escapeHtml(event.title)}</h4>
-        <span class="meta">${formatEventDate(event.date, event.time)}</span>
-        <button class="btn-remove" data-id="${event.id}">Remove</button>
-      </li>
-    `
+      (dateStr) => {
+        const dayEvents = byDay[dateStr];
+        const label = dayLabels[dateStr];
+        return `
+          <li class="calendar-upcoming-day">
+            <span class="calendar-upcoming-label">${escapeHtml(label)}</span>
+            <ul class="list list-compact">
+              ${dayEvents
+                .map(
+                  (ev) => `
+                <li class="list-item list-item-compact">
+                  <span class="event-title">${escapeHtml(ev.title)}</span>
+                  <span class="meta">${ev.time ? escapeHtml(ev.time) : 'All day'}</span>
+                  <button class="btn-remove" data-id="${ev.id}">Remove</button>
+                </li>
+              `
+                )
+                .join('')}
+            </ul>
+          </li>
+        `;
+      }
     )
     .join('');
 
@@ -352,6 +474,23 @@ function formatEventDate(dateStr, timeStr) {
     return `${dateText} · ${timeStr}`;
   }
   return dateText;
+}
+
+function initCalendarNav() {
+  const prev = document.getElementById('calendarPrev');
+  const next = document.getElementById('calendarNext');
+  if (prev) {
+    prev.addEventListener('click', () => {
+      calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1);
+      renderCalendar();
+    });
+  }
+  if (next) {
+    next.addEventListener('click', () => {
+      calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1);
+      renderCalendar();
+    });
+  }
 }
 
 // ——— AI Assistant ———
@@ -551,7 +690,9 @@ function init() {
   fetchWeather();
   renderNotes();
   renderEmails();
+  renderCalendar();
   renderEvents();
+  initCalendarNav();
   initForms();
   initAiDockToggle();
   initAiAssistant();
