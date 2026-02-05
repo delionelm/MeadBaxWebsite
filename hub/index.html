@@ -82,7 +82,15 @@
         </div>
         <div class="panel-body">
           <div class="card">
-            <h3>Inbox</h3>
+            <div class="email-inbox-header">
+              <h3>Inbox</h3>
+              <div class="email-actions">
+                <a href="/api/auth/gmail" class="btn btn-connect-gmail" id="connectGmailBtn" style="display: none;">Connect Gmail</a>
+                <span class="email-connected" id="emailConnectedLabel" style="display: none;">Gmail connected</span>
+                <button type="button" class="btn btn-signout-gmail" id="signOutGmailBtn" style="display: none;">Sign out</button>
+              </div>
+            </div>
+            <div class="email-loading" id="emailLoading">Loading…</div>
             <ul class="list" id="emailList"></ul>
           </div>
         </div>

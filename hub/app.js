@@ -7,11 +7,7 @@ const STORAGE_KEYS = {
   units: 'hub_units',
 };
 
-const EMAIL_SAMPLE = [
-  { subject: 'Welcome to MeadBax Hub', sender: 'Support Team', time: 'Just now' },
-  { subject: 'Weekly summary ready', sender: 'Calendar Bot', time: 'Today, 8:12 AM' },
-  { subject: 'Reminder: Update your notes', sender: 'Notes Assistant', time: 'Yesterday' },
-];
+const API_BASE = ''; // same origin when hub is served with API (e.g. Vercel)
 
 const QUOTES = [
   { text: 'Success is the sum of small efforts, repeated day in and day out.', author: 'Robert Collier' },
@@ -667,19 +663,93 @@ function renderNotes() {
   });
 }
 
-// ——— Email ———
-function renderEmails() {
-  const list = document.getElementById('emailList');
+// ——— Email (Gmail API) ———
+function getEmailListEl() {
+  return document.getElementById('emailList');
+}
+
+function showEmailState(loading, connected, showConnectBtn) {
+  const loadingEl = document.getElementById('emailLoading');
+  const connectBtn = document.getElementById('connectGmailBtn');
+  const connectedLabel = document.getElementById('emailConnectedLabel');
+  const signOutBtn = document.getElementById('signOutGmailBtn');
+  const list = getEmailListEl();
+  if (loadingEl) loadingEl.style.display = loading ? 'block' : 'none';
+  if (connectBtn) connectBtn.style.display = showConnectBtn ? 'inline-flex' : 'none';
+  if (connectedLabel) connectedLabel.style.display = connected ? 'inline' : 'none';
+  if (signOutBtn) signOutBtn.style.display = connected ? 'inline-flex' : 'none';
+  if (list) list.style.display = loading ? 'none' : 'block';
+}
+
+async function signOutGmail() {
+  const signOutBtn = document.getElementById('signOutGmailBtn');
+  if (signOutBtn) signOutBtn.disabled = true;
+  try {
+    await fetch(`${API_BASE}/api/auth/gmail/signout`, { method: 'POST', credentials: 'include' });
+    // Force full reload so the browser drops the cookie and hub loads signed out
+    window.location.href = '/hub/';
+  } catch (_) {
+    if (signOutBtn) signOutBtn.disabled = false;
+    fetchEmails();
+  }
+}
+
+function renderEmailList(emails) {
+  const list = getEmailListEl();
   if (!list) return;
-  list.innerHTML = EMAIL_SAMPLE.map(
-    (email) => `
+  if (!emails || emails.length === 0) {
+    list.innerHTML = '<li class="email-empty">No messages in inbox.</li>';
+    return;
+  }
+  list.innerHTML = emails
+    .map(
+      (email) => `
       <li class="list-item">
         <h4>${escapeHtml(email.subject)}</h4>
         <p>From: ${escapeHtml(email.sender)}</p>
         <span class="meta">${escapeHtml(email.time)}</span>
       </li>
     `
-  ).join('');
+    )
+    .join('');
+}
+
+async function fetchEmails() {
+  const list = getEmailListEl();
+  showEmailState(true, false, false);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/gmail/inbox`, { credentials: 'include' });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.status === 401 || (data && data.code === 'NOT_CONNECTED')) {
+      showEmailState(false, false, true);
+      renderEmailList([]);
+      if (list) list.innerHTML = '<li class="email-empty">Connect Gmail to see your inbox.</li>';
+      return;
+    }
+
+    if (!res.ok) {
+      showEmailState(false, false, true);
+      if (list) list.innerHTML = '<li class="email-empty">Could not load inbox. Try connecting again.</li>';
+      return;
+    }
+
+    showEmailState(false, true, false);
+    renderEmailList(data.emails || []);
+  } catch (_) {
+    showEmailState(false, false, true);
+    if (list) list.innerHTML = '<li class="email-empty">Cannot reach server. Deploy with API or run locally with <code>vercel dev</code>.</li>';
+  }
+}
+
+function initEmailSignOut() {
+  const signOutBtn = document.getElementById('signOutGmailBtn');
+  if (signOutBtn) signOutBtn.addEventListener('click', signOutGmail);
+}
+
+function renderEmails() {
+  fetchEmails();
 }
 
 // ——— Calendar ———
@@ -1119,6 +1189,13 @@ function init() {
   scheduleHourlyWeatherRefresh();
   renderNotes();
   renderEmails();
+  initEmailSignOut();
+  const gmailParam = new URLSearchParams(window.location.search).get('gmail');
+  if (gmailParam === 'connected') {
+    fetchEmails();
+    const url = window.location.pathname + (window.location.hash || '');
+    window.history.replaceState({}, '', url);
+  }
   renderCalendar();
   renderEvents();
   renderQuoteOfTheDay();
