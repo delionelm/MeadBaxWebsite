@@ -13,6 +13,21 @@ const EMAIL_SAMPLE = [
   { subject: 'Reminder: Update your notes', sender: 'Notes Assistant', time: 'Yesterday' },
 ];
 
+const QUOTES = [
+  { text: 'Success is the sum of small efforts, repeated day in and day out.', author: 'Robert Collier' },
+  { text: 'The future depends on what you do today.', author: 'Mahatma Gandhi' },
+  { text: 'Discipline is choosing between what you want now and what you want most.', author: 'Abraham Lincoln' },
+  { text: 'Don’t watch the clock; do what it does. Keep going.', author: 'Sam Levenson' },
+  { text: 'Action is the foundational key to all success.', author: 'Pablo Picasso' },
+  { text: 'Great things are done by a series of small things brought together.', author: 'Vincent van Gogh' },
+  { text: 'The secret of getting ahead is getting started.', author: 'Mark Twain' },
+  { text: 'Your time is limited, so don’t waste it living someone else’s life.', author: 'Steve Jobs' },
+  { text: 'Dreams don’t work unless you do.', author: 'John C. Maxwell' },
+  { text: 'It always seems impossible until it’s done.', author: 'Nelson Mandela' },
+  { text: 'Focus on being productive instead of busy.', author: 'Tim Ferriss' },
+  { text: 'Small steps every day.', author: 'Anonymous' },
+];
+
 // ——— Date & time ———
 function formatDate(d) {
   const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -38,6 +53,24 @@ function updateDateTime() {
   if (dateEl) dateEl.textContent = formatDate(now);
   if (timeEl) timeEl.textContent = formatTime(now);
   if (metaEl) metaEl.textContent = getDayMeta(now);
+}
+
+function getDailyQuoteIndex() {
+  const today = new Date();
+  const key = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) % 997;
+  }
+  return hash % QUOTES.length;
+}
+
+function renderQuoteOfTheDay() {
+  const quote = QUOTES[getDailyQuoteIndex()];
+  const textEl = document.getElementById('quoteText');
+  const authorEl = document.getElementById('quoteAuthor');
+  if (textEl) textEl.textContent = `“${quote.text}”`;
+  if (authorEl) authorEl.textContent = `— ${quote.author}`;
 }
 
 // ——— Weather (Open-Meteo, no API key) ———
@@ -158,6 +191,13 @@ async function fetchWeather(options = {}) {
       if (aqiMetaEl) aqiMetaEl.textContent = '';
       window.__hubWeather = null;
     }
+  }
+
+  if (options.location) {
+    const { lat, lon, label } = options.location;
+    saveLocation({ lat, lon, label });
+    fetchWithCoords(lat, lon, label);
+    return;
   }
 
   if (options.useSavedOnly) {
@@ -396,7 +436,7 @@ function initLocationControls() {
           saveLocation(single);
           if (input) input.value = single.label;
           closeSuggestions();
-          fetchWeather({ useSavedOnly: true });
+        fetchWeather({ location: single });
         }
       }, 250);
     });
@@ -408,7 +448,7 @@ function initLocationControls() {
         saveLocation(selected);
         if (input) input.value = selected.label;
         closeSuggestions();
-        fetchWeather({ useSavedOnly: true });
+        fetchWeather({ location: selected });
       }
     });
     input.addEventListener('blur', () => {
@@ -416,16 +456,50 @@ function initLocationControls() {
     });
   }
 
+  const setSearchingState = (message) => {
+    const loading = document.getElementById('weatherLoading');
+    const details = document.getElementById('weatherDetails');
+    if (loading) {
+      loading.textContent = message;
+      loading.classList.remove('hidden');
+    }
+    if (details) details.classList.add('hidden');
+  };
+
+  const findBestMatch = (query, results) => {
+    if (!results?.length) return null;
+    const lower = query.toLowerCase();
+    return (
+      results.find((item) => item.label.toLowerCase() === lower) ||
+      results.find((item) => item.label.toLowerCase().startsWith(lower)) ||
+      results[0]
+    );
+  };
+
   if (searchBtn && input) {
     searchBtn.addEventListener('click', async () => {
       const query = input.value.trim();
       if (!query) return;
-      const results = await searchLocation(query, 1);
-      const result = results?.[0];
-      if (result) {
-        saveLocation(result);
+      setSearchingState('Searching location…');
+
+      const cached = findBestMatch(query, lastResults);
+      if (cached) {
         closeSuggestions();
-        fetchWeather({ useSavedOnly: true });
+        fetchWeather({ location: cached });
+        return;
+      }
+
+      let results = await searchLocation(query, 1);
+      let result = results?.[0];
+      if (!result && query.includes(',')) {
+        results = await searchLocation(query.split(',')[0].trim(), 1);
+        result = results?.[0];
+      }
+      if (result) {
+        closeSuggestions();
+        fetchWeather({ location: result });
+      } else {
+        setSearchingState('No matching location found.');
       }
     });
   }
@@ -798,25 +872,6 @@ function formatEventDate(dateStr, timeStr) {
   return dateText;
 }
 
-<<<<<<< HEAD
-function initCalendarNav() {
-  const prev = document.getElementById('calendarPrev');
-  const next = document.getElementById('calendarNext');
-  if (prev) {
-    prev.addEventListener('click', () => {
-      calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1);
-      renderCalendar();
-    });
-  }
-  if (next) {
-    next.addEventListener('click', () => {
-      calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1);
-      renderCalendar();
-    });
-  }
-}
-
-=======
 function parseLocalTimeToUtcMillis(localTime, offsetSeconds) {
   if (!localTime || typeof offsetSeconds !== 'number') {
     return new Date(localTime).getTime();
@@ -865,8 +920,6 @@ function getZoneHourStartUtc(nowUtcMillis, offsetSeconds) {
   const hour = zoneNow.getUTCHours();
   return Date.UTC(year, month, day, hour) - offsetSeconds * 1000;
 }
-
->>>>>>> b97d198 (Build full weather dashboard with location search.)
 // ——— AI Assistant ———
 function addAiMessage(text, type = 'assistant') {
   const list = document.getElementById('aiMessages');
@@ -1068,6 +1121,7 @@ function init() {
   renderEmails();
   renderCalendar();
   renderEvents();
+  renderQuoteOfTheDay();
   initCalendarNav();
   initForms();
   initAiDockToggle();

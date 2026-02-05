@@ -30,8 +30,24 @@ body {
   font-family: var(--font-sans);
   font-size: 16px;
   color: var(--text);
-  background: var(--bg);
+  background: radial-gradient(circle at top, #1a274a 0%, #0b1229 45%, #050813 100%);
+  position: relative;
+  overflow-x: hidden;
   line-height: 1.5;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(#ffffff 1px, transparent 1px),
+    radial-gradient(#ffffff 1px, transparent 1px),
+    radial-gradient(#ffffff 1px, transparent 1px);
+  background-size: 120px 120px, 200px 200px, 260px 260px;
+  background-position: 0 0, 40px 60px, 90px 140px;
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .app-shell {
@@ -111,6 +127,7 @@ body {
 /* Content */
 .content {
   padding: 2rem 2.5rem 6rem;
+  color: #eaf2ff;
 }
 
 .topbar {
@@ -159,6 +176,52 @@ body {
   display: block;
 }
 
+.home-panel {
+  background: radial-gradient(circle at top, #121b38 0%, #0b1229 45%, #050813 100%);
+  color: #eaf2ff;
+  border-radius: 24px;
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.home-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(#ffffff 1px, transparent 1px),
+    radial-gradient(#ffffff 1px, transparent 1px);
+  background-size: 120px 120px, 180px 180px;
+  background-position: 0 0, 40px 60px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.home-panel .panel-header h2,
+.home-panel .panel-header p {
+  color: #eaf2ff;
+}
+
+.quote-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #eaf2ff;
+  position: relative;
+  z-index: 1;
+}
+
+.quote-text {
+  font-size: 1.4rem;
+  margin: 0.5rem 0 1rem;
+  line-height: 1.6;
+}
+
+.quote-author {
+  margin: 0;
+  font-weight: 600;
+  color: rgba(234, 242, 255, 0.8);
+}
+
 .panel-header h2 {
   margin: 0;
   font-size: 1.5rem;
@@ -166,7 +229,7 @@ body {
 
 .panel-header p {
   margin: 0.4rem 0 1.5rem;
-  color: var(--text-muted);
+  color: rgba(234, 242, 255, 0.7);
 }
 
 .weather-header {
@@ -194,8 +257,8 @@ body {
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: rgba(8, 14, 28, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 12px;
   box-shadow: var(--shadow);
   z-index: 10;
@@ -212,16 +275,17 @@ body {
 
 .suggestion-item {
   border: none;
-  background: var(--surface-alt);
+  background: rgba(15, 24, 46, 0.8);
   padding: 0.5rem 0.65rem;
   border-radius: 10px;
   text-align: left;
   cursor: pointer;
   font: inherit;
+  color: #eaf2ff;
 }
 
 .suggestion-item:hover {
-  background: var(--accent-soft);
+  background: rgba(60, 120, 255, 0.3);
 }
 
 .weather-location input {
@@ -257,15 +321,17 @@ body {
 
 /* Cards */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: rgba(8, 14, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius);
   padding: 1.5rem;
   box-shadow: var(--shadow);
+  color: #eaf2ff;
 }
 
 .weather-panel {
-  background: radial-gradient(circle at top, #d6e4ff 0%, #f6f8ff 45%, #ffffff 100%);
+  background: rgba(8, 14, 28, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   padding: 1.5rem;
   border-radius: 24px;
 }
@@ -325,7 +391,7 @@ body {
 .hourly-item {
   padding: 0.65rem;
   border-radius: 12px;
-  background: var(--surface-alt);
+  background: rgba(15, 24, 46, 0.7);
   text-align: center;
   display: grid;
   gap: 0.2rem;
@@ -337,8 +403,8 @@ body {
 }
 
 .hourly-sun {
-  background: #f6fbff;
-  border: 1px solid var(--border);
+  background: rgba(20, 34, 64, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .aqi-block {
@@ -361,7 +427,7 @@ body {
 .aqi-meta {
   margin: 0.2rem 0 0;
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: rgba(234, 242, 255, 0.7);
 }
 
 .weather-metrics .metrics-grid {
@@ -373,7 +439,7 @@ body {
 .metric {
   padding: 0.75rem;
   border-radius: 12px;
-  background: var(--surface-alt);
+  background: rgba(15, 24, 46, 0.7);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -397,12 +463,12 @@ body {
 input,
 textarea {
   width: 100%;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
   padding: 0.65rem 0.85rem;
   font: inherit;
-  background: var(--surface-alt);
-  color: var(--text);
+  background: rgba(10, 18, 36, 0.8);
+  color: #eaf2ff;
 }
 
 textarea {
@@ -447,8 +513,8 @@ textarea {
 .list-item {
   padding: 0.75rem 0.85rem;
   border-radius: 12px;
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
+  background: rgba(15, 24, 46, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -462,12 +528,12 @@ textarea {
 .list-item p {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: rgba(234, 242, 255, 0.72);
 }
 
 .list-item .meta {
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: rgba(234, 242, 255, 0.6);
 }
 
 .note-actions {
@@ -761,8 +827,8 @@ textarea {
   bottom: 24px;
   width: 340px;
   max-width: calc(100vw - 48px);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: rgba(8, 14, 28, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 18px;
   box-shadow: var(--shadow);
   padding: 1rem;
@@ -794,7 +860,7 @@ textarea {
   font-weight: 700;
   font-size: 0.75rem;
   border-radius: 12px;
-  background: var(--accent-soft);
+  background: rgba(60, 120, 255, 0.3);
   transition: background 0.2s, color 0.2s;
 }
 
@@ -830,7 +896,7 @@ textarea {
   cursor: pointer;
   padding: 0.35rem;
   font-size: 0.9rem;
-  color: var(--text-muted);
+  color: rgba(234, 242, 255, 0.6);
   border-radius: 8px;
   line-height: 1;
 }
@@ -848,7 +914,7 @@ textarea {
 .ai-subtitle {
   margin: 0.2rem 0 0;
   font-size: 0.8rem;
-  color: var(--text-muted);
+  color: rgba(234, 242, 255, 0.65);
 }
 
 .ai-messages {
@@ -861,12 +927,13 @@ textarea {
 .ai-message {
   padding: 0.6rem 0.7rem;
   border-radius: 12px;
-  background: var(--surface-alt);
+  background: rgba(15, 24, 46, 0.8);
   font-size: 0.85rem;
+  color: #eaf2ff;
 }
 
 .ai-message.user {
-  background: var(--accent-soft);
+  background: rgba(60, 120, 255, 0.35);
 }
 
 .ai-input {
