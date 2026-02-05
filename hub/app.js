@@ -1,10 +1,15 @@
-/* Daily Hub — App logic */
+/* MeadBax Hub — App logic */
 
 const STORAGE_KEYS = {
-  todos: 'hub_todos',
-  goals: 'hub_goals',
-  openaiKey: 'hub_openai_key',
+  notes: 'hub_notes',
+  events: 'hub_events',
 };
+
+const EMAIL_SAMPLE = [
+  { subject: 'Welcome to MeadBax Hub', sender: 'Support Team', time: 'Just now' },
+  { subject: 'Weekly summary ready', sender: 'Calendar Bot', time: 'Today, 8:12 AM' },
+  { subject: 'Reminder: Update your notes', sender: 'Notes Assistant', time: 'Yesterday' },
+];
 
 // ——— Date & time ———
 function formatDate(d) {
@@ -13,12 +18,11 @@ function formatDate(d) {
 }
 
 function formatTime(d) {
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 function getDayMeta(d) {
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const end = new Date(d.getFullYear(), 11, 31);
   const dayOfYear = Math.floor((start - new Date(d.getFullYear(), 0, 0)) / 86400000);
   const weekNum = Math.ceil((start - new Date(d.getFullYear(), 0, 1)) / 604800000) + 1;
   return `Day ${dayOfYear} of the year · Week ${weekNum}`;
@@ -41,9 +45,10 @@ async function fetchWeather() {
   const tempEl = document.getElementById('weatherTemp');
   const descEl = document.getElementById('weatherDesc');
   const metaEl = document.getElementById('weatherMeta');
+  const extraEl = document.getElementById('weatherExtra');
 
-  const defaultLat = 40.7128;
-  const defaultLon = -74.006;
+  const defaultLat = 38.8048;
+  const defaultLon = -77.0469;
 
   function success(pos) {
     fetchWithCoords(pos.coords.latitude, pos.coords.longitude);
@@ -67,15 +72,22 @@ async function fetchWeather() {
 
       if (loading) loading.classList.add('hidden');
       if (details) details.classList.remove('hidden');
-      if (tempEl) tempEl.textContent = `${temp}°${cur.temperature_2m === temp ? 'C' : ''}`;
+      if (tempEl) tempEl.textContent = `${temp}°C`;
       if (descEl) descEl.textContent = desc;
       if (metaEl) metaEl.textContent = meta;
+      if (extraEl) {
+        extraEl.textContent = `Last updated ${new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`;
+      }
 
-      window.__hubWeather = { temp, desc, code: cur.weather_code, humidity: cur.relative_humidity_2m, wind: cur.wind_speed_10m };
+      window.__hubWeather = { temp, desc, code: cur.weather_code };
     } catch (e) {
       if (loading) loading.textContent = 'Weather unavailable';
       if (loading) loading.classList.remove('hidden');
       if (details) details.classList.add('hidden');
+      if (extraEl) extraEl.textContent = '';
       window.__hubWeather = null;
     }
   }
@@ -94,143 +106,294 @@ function weatherCodeToDesc(code) {
     2: 'Partly cloudy',
     3: 'Overcast',
     45: 'Foggy',
-    48: 'Depositing rime fog',
     51: 'Light drizzle',
-    53: 'Drizzle',
-    55: 'Dense drizzle',
     61: 'Slight rain',
     63: 'Moderate rain',
     65: 'Heavy rain',
     71: 'Slight snow',
-    73: 'Moderate snow',
-    75: 'Heavy snow',
-    77: 'Snow grains',
-    80: 'Slight rain showers',
-    81: 'Rain showers',
-    82: 'Heavy rain showers',
-    85: 'Snow showers',
-    86: 'Heavy snow showers',
+    80: 'Rain showers',
     95: 'Thunderstorm',
-    96: 'Thunderstorm with hail',
-    99: 'Thunderstorm with heavy hail',
   };
   return map[code] || 'Unknown';
 }
 
-// ——— Todos ———
-function getTodos() {
+// ——— Navigation ———
+function initNav() {
+  const nav = document.getElementById('appNav');
+  const panels = document.querySelectorAll('[data-panel]');
+  if (!nav) return;
+
+  nav.querySelectorAll('.nav-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      nav.querySelectorAll('.nav-item').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      const target = btn.dataset.app;
+      panels.forEach((panel) => {
+        panel.classList.toggle('active', panel.dataset.panel === target);
+      });
+    });
+  });
+}
+
+// ——— Notes ———
+function getNotes() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.todos);
+    const raw = localStorage.getItem(STORAGE_KEYS.notes);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-function setTodos(todos) {
-  localStorage.setItem(STORAGE_KEYS.todos, JSON.stringify(todos));
-  renderTodos();
-  refreshAiSuggestion();
+function setNotes(notes) {
+  localStorage.setItem(STORAGE_KEYS.notes, JSON.stringify(notes));
+  renderNotes();
 }
 
-function addTodo(text) {
-  const t = String(text).trim();
-  if (!t) return;
-  const todos = getTodos();
-  todos.push({ id: Date.now(), text: t, done: false });
-  setTodos(todos);
+function addNote(title, body) {
+  const t = String(title || '').trim() || 'Untitled note';
+  const b = String(body || '').trim();
+  const notes = getNotes();
+  notes.unshift({
+    id: Date.now(),
+    title: t,
+    body: b,
+    createdAt: new Date().toISOString(),
+  });
+  setNotes(notes);
 }
 
-function toggleTodo(id) {
-  const todos = getTodos().map((item) =>
-    item.id === id ? { ...item, done: !item.done } : item
-  );
-  setTodos(todos);
+function removeNote(id) {
+  setNotes(getNotes().filter((note) => note.id !== id));
 }
 
-function removeTodo(id) {
-  setTodos(getTodos().filter((item) => item.id !== id));
-}
-
-function renderTodos() {
-  const list = document.getElementById('todoList');
+function renderNotes() {
+  const list = document.getElementById('noteList');
   if (!list) return;
-  const todos = getTodos();
-  list.innerHTML = todos
+  const notes = getNotes();
+  list.innerHTML = notes
     .map(
-      (item) => `
-    <li class="todo-item ${item.done ? 'done' : ''}" data-id="${item.id}">
-      <input type="checkbox" ${item.done ? 'checked' : ''} aria-label="Complete task" />
-      <span class="todo-label">${escapeHtml(item.text)}</span>
-      <button type="button" class="btn-remove" aria-label="Remove task">Remove</button>
-    </li>
-  `
+      (note) => `
+      <li class="list-item">
+        <h4>${escapeHtml(note.title)}</h4>
+        <p>${escapeHtml(note.body || 'No details yet.')}</p>
+        <span class="meta">${new Date(note.createdAt).toLocaleString()}</span>
+        <button class="btn-remove" data-id="${note.id}">Delete</button>
+      </li>
+    `
     )
     .join('');
 
-  list.querySelectorAll('.todo-item').forEach((el) => {
-    const id = Number(el.dataset.id);
-    el.querySelector('input[type="checkbox"]').addEventListener('change', () => toggleTodo(id));
-    el.querySelector('.btn-remove').addEventListener('click', () => removeTodo(id));
+  list.querySelectorAll('.btn-remove').forEach((btn) => {
+    btn.addEventListener('click', () => removeNote(Number(btn.dataset.id)));
   });
 }
 
-// ——— Goals ———
-function getGoals() {
+// ——— Email ———
+function renderEmails() {
+  const list = document.getElementById('emailList');
+  if (!list) return;
+  list.innerHTML = EMAIL_SAMPLE.map(
+    (email) => `
+      <li class="list-item">
+        <h4>${escapeHtml(email.subject)}</h4>
+        <p>From: ${escapeHtml(email.sender)}</p>
+        <span class="meta">${escapeHtml(email.time)}</span>
+      </li>
+    `
+  ).join('');
+}
+
+// ——— Calendar ———
+function getEvents() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.goals);
+    const raw = localStorage.getItem(STORAGE_KEYS.events);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-function setGoals(goals) {
-  localStorage.setItem(STORAGE_KEYS.goals, JSON.stringify(goals));
-  renderGoals();
-  refreshAiSuggestion();
+function setEvents(events) {
+  localStorage.setItem(STORAGE_KEYS.events, JSON.stringify(events));
+  renderEvents();
 }
 
-function addGoal(text) {
-  const t = String(text).trim();
-  if (!t) return;
-  const goals = getGoals();
-  goals.push({ id: Date.now(), text: t, done: false });
-  setGoals(goals);
+function addEvent(title, date, time) {
+  const t = String(title || '').trim() || 'New event';
+  if (!date) return;
+  const events = getEvents();
+  events.push({
+    id: Date.now(),
+    title: t,
+    date,
+    time: time || '',
+  });
+  setEvents(events);
 }
 
-function toggleGoal(id) {
-  const goals = getGoals().map((item) =>
-    item.id === id ? { ...item, done: !item.done } : item
-  );
-  setGoals(goals);
+function removeEvent(id) {
+  setEvents(getEvents().filter((event) => event.id !== id));
 }
 
-function removeGoal(id) {
-  setGoals(getGoals().filter((item) => item.id !== id));
-}
-
-function renderGoals() {
-  const list = document.getElementById('goalList');
+function renderEvents() {
+  const list = document.getElementById('eventList');
   if (!list) return;
-  const goals = getGoals();
-  list.innerHTML = goals
+  const events = getEvents()
+    .slice()
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  list.innerHTML = events
     .map(
-      (item) => `
-    <li class="goal-item ${item.done ? 'done' : ''}" data-id="${item.id}">
-      <input type="checkbox" ${item.done ? 'checked' : ''} aria-label="Complete goal" />
-      <span class="goal-label">${escapeHtml(item.text)}</span>
-      <button type="button" class="btn-remove" aria-label="Remove goal">Remove</button>
-    </li>
-  `
+      (event) => `
+      <li class="list-item">
+        <h4>${escapeHtml(event.title)}</h4>
+        <span class="meta">${formatEventDate(event.date, event.time)}</span>
+        <button class="btn-remove" data-id="${event.id}">Remove</button>
+      </li>
+    `
     )
     .join('');
 
-  list.querySelectorAll('.goal-item').forEach((el) => {
-    const id = Number(el.dataset.id);
-    el.querySelector('input[type="checkbox"]').addEventListener('change', () => toggleGoal(id));
-    el.querySelector('.btn-remove').addEventListener('click', () => removeGoal(id));
+  list.querySelectorAll('.btn-remove').forEach((btn) => {
+    btn.addEventListener('click', () => removeEvent(Number(btn.dataset.id)));
   });
+}
+
+function formatEventDate(dateStr, timeStr) {
+  const date = new Date(`${dateStr}T${timeStr || '00:00'}`);
+  const dateText = date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  if (timeStr) {
+    return `${dateText} · ${timeStr}`;
+  }
+  return dateText;
+}
+
+// ——— AI Assistant ———
+function addAiMessage(text, type = 'assistant') {
+  const list = document.getElementById('aiMessages');
+  if (!list) return;
+  const item = document.createElement('div');
+  item.className = `ai-message ${type}`;
+  item.textContent = text;
+  list.appendChild(item);
+  list.scrollTop = list.scrollHeight;
+}
+
+function parseDateFromText(text) {
+  const months = {
+    january: 0,
+    february: 1,
+    march: 2,
+    april: 3,
+    may: 4,
+    june: 5,
+    july: 6,
+    august: 7,
+    september: 8,
+    october: 9,
+    november: 10,
+    december: 11,
+  };
+  const monthMatch = text.match(
+    /(\d{1,2})(st|nd|rd|th)?\s*(of)?\s*(january|february|march|april|may|june|july|august|september|october|november|december)/i
+  );
+  if (monthMatch) {
+    const day = Number(monthMatch[1]);
+    const month = months[monthMatch[4].toLowerCase()];
+    const year = new Date().getFullYear();
+    let date = new Date(year, month, day);
+    if (date < new Date()) {
+      date = new Date(year + 1, month, day);
+    }
+    return date.toISOString().slice(0, 10);
+  }
+
+  const numericMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})/);
+  if (numericMatch) {
+    const month = Number(numericMatch[1]) - 1;
+    const day = Number(numericMatch[2]);
+    const year = new Date().getFullYear();
+    let date = new Date(year, month, day);
+    if (date < new Date()) {
+      date = new Date(year + 1, month, day);
+    }
+    return date.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function parseTimeFromText(text) {
+  const match = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (!match) return '';
+  let hour = Number(match[1]);
+  const minute = Number(match[2] || 0);
+  const period = match[3]?.toLowerCase();
+  if (period === 'pm' && hour < 12) hour += 12;
+  if (period === 'am' && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function handleAiCommand(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes('add note') || lower.startsWith('note')) {
+    const noteText = text.replace(/add note/i, '').trim() || text;
+    addNote('AI Note', noteText);
+    addAiMessage('Added a new note for you.');
+    return;
+  }
+
+  if (lower.includes('calendar') || lower.includes('schedule') || lower.includes('meeting')) {
+    const date = parseDateFromText(lower);
+    const time = parseTimeFromText(lower);
+    if (!date) {
+      addAiMessage('Tell me the date, like “Feb 7” or “02/07”.');
+      return;
+    }
+    addEvent(text, date, time);
+    addAiMessage(`Got it. Added to your calendar on ${date}${time ? ` at ${time}` : ''}.`);
+    return;
+  }
+
+  addAiMessage(
+    'I can add notes or calendar events. Try: “Add note call John” or “Schedule meeting on Feb 7 at 3pm.”'
+  );
+}
+
+function initAiAssistant() {
+  const form = document.getElementById('aiForm');
+  const input = document.getElementById('aiInput');
+  const mic = document.getElementById('aiMic');
+
+  if (form && input) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      addAiMessage(text, 'user');
+      handleAiCommand(text);
+      input.value = '';
+    });
+  }
+
+  if (mic && 'webkitSpeechRecognition' in window) {
+    const recognition = new window.webkitSpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    mic.addEventListener('click', () => {
+      recognition.start();
+    });
+    recognition.addEventListener('result', (event) => {
+      const transcript = event.results[0][0].transcript;
+      if (input) input.value = transcript;
+      addAiMessage(transcript, 'user');
+      handleAiCommand(transcript);
+      if (input) input.value = '';
+    });
+  }
 }
 
 function escapeHtml(s) {
@@ -239,170 +402,34 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
-// ——— AI suggestion ———
-function getOpenAIKey() {
-  return localStorage.getItem(STORAGE_KEYS.openaiKey) || '';
-}
-
-function buildContext() {
-  const now = new Date();
-  const todos = getTodos().filter((t) => !t.done);
-  const goals = getGoals().filter((g) => !g.done);
-  const weather = window.__hubWeather;
-  return {
-    date: formatDate(now),
-    time: formatTime(now),
-    weekday: now.toLocaleDateString(undefined, { weekday: 'long' }),
-    tasks: todos.map((t) => t.text),
-    goals: goals.map((g) => g.text),
-    weather: weather
-      ? `${weather.desc}, ${weather.temp}°C, humidity ${weather.humidity}%, wind ${weather.wind} km/h`
-      : 'Unknown',
-  };
-}
-
-function buildPrompt(ctx) {
-  return `You are a concise daily planning assistant. Given the following, suggest what the user should do today in 2–4 short, actionable sentences. Be specific and consider weather and time of day.
-
-Today: ${ctx.date} (${ctx.weekday}), current time: ${ctx.time}
-Weather: ${ctx.weather}
-Current tasks: ${ctx.tasks.length ? ctx.tasks.join('; ') : 'None'}
-Current goals: ${ctx.goals.length ? ctx.goals.join('; ') : 'None'}
-
-Reply with only the suggestion, no preamble.`;
-}
-
-function localSuggestion(ctx) {
-  const parts = [];
-  const tasks = ctx.tasks;
-  const goals = ctx.goals;
-  const weather = (ctx.weather || '').toLowerCase();
-  const isWeekend = ['Saturday', 'Sunday'].includes(ctx.weekday);
-  const hour = new Date().getHours();
-  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-
-  if (tasks.length) {
-    parts.push(`Focus on "${tasks[0]}" first this ${timeOfDay}.`);
-    if (tasks.length > 1) {
-      parts.push(`You have ${tasks.length} tasks today; ticking off the first will build momentum.`);
-    }
-  } else if (goals.length) {
-    parts.push(`You have no tasks yet. Consider breaking "${goals[0]}" into a small step you can do today.`);
-  } else {
-    parts.push(`No tasks or goals yet. Add one or two to get a tailored suggestion.`);
-  }
-
-  if (weather.includes('rain') || weather.includes('snow') || weather.includes('storm')) {
-    parts.push('With this weather, indoor or low-mobility tasks are a good fit.');
-  } else if (weather.includes('clear') || weather.includes('partly')) {
-    parts.push('Good day to include something outdoors if it fits your list.');
-  }
-
-  if (isWeekend && (tasks.length || goals.length)) {
-    parts.push('Use the weekend to make progress without rushing.');
-  }
-
-  return parts.join(' ');
-}
-
-async function fetchAiSuggestion() {
-  const loading = document.getElementById('aiLoading');
-  const suggestion = document.getElementById('aiSuggestion');
-  if (loading) loading.classList.remove('hidden');
-  if (suggestion) suggestion.classList.add('hidden');
-
-  const ctx = buildContext();
-  const key = getOpenAIKey();
-
-  if (key && key.startsWith('sk-')) {
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: buildPrompt(ctx) }],
-          max_tokens: 200,
-        }),
-      });
-      const data = await res.json();
-      const text = data.choices?.[0]?.message?.content?.trim();
-      if (text) {
-        if (loading) loading.classList.add('hidden');
-        if (suggestion) {
-          suggestion.textContent = text;
-          suggestion.classList.remove('hidden');
-        }
-        return;
-      }
-    } catch (e) {
-      console.warn('OpenAI request failed, using local suggestion:', e);
-    }
-  }
-
-  const local = localSuggestion(ctx);
-  if (loading) loading.classList.add('hidden');
-  if (suggestion) {
-    suggestion.textContent = local;
-    suggestion.classList.remove('hidden');
-  }
-}
-
-function refreshAiSuggestion() {
-  fetchAiSuggestion();
-}
-
-// ——— Settings ———
-function initSettings() {
-  const panel = document.getElementById('settingsPanel');
-  const btn = document.getElementById('btnSettings');
-  const input = document.getElementById('openaiKey');
-  const save = document.getElementById('saveSettings');
-
-  if (input) input.value = getOpenAIKey() || '';
-
-  if (btn && panel) {
-    btn.addEventListener('click', () => {
-      panel.classList.toggle('hidden');
-    });
-  }
-  if (save && input) {
-    save.addEventListener('click', () => {
-      const val = input.value.trim();
-      if (val) localStorage.setItem(STORAGE_KEYS.openaiKey, val);
-      else localStorage.removeItem(STORAGE_KEYS.openaiKey);
-      refreshAiSuggestion();
-    });
-  }
-}
-
 // ——— Forms ———
 function initForms() {
-  const todoForm = document.getElementById('todoForm');
-  const todoInput = document.getElementById('todoInput');
-  const goalForm = document.getElementById('goalForm');
-  const goalInput = document.getElementById('goalInput');
-  const refreshBtn = document.getElementById('refreshAi');
+  const noteForm = document.getElementById('noteForm');
+  const noteTitle = document.getElementById('noteTitle');
+  const noteBody = document.getElementById('noteBody');
+  const eventForm = document.getElementById('eventForm');
+  const eventTitle = document.getElementById('eventTitle');
+  const eventDate = document.getElementById('eventDate');
+  const eventTime = document.getElementById('eventTime');
 
-  if (todoForm && todoInput) {
-    todoForm.addEventListener('submit', (e) => {
+  if (noteForm) {
+    noteForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      addTodo(todoInput.value);
-      todoInput.value = '';
+      addNote(noteTitle.value, noteBody.value);
+      noteTitle.value = '';
+      noteBody.value = '';
     });
   }
-  if (goalForm && goalInput) {
-    goalForm.addEventListener('submit', (e) => {
+
+  if (eventForm) {
+    eventForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      addGoal(goalInput.value);
-      goalInput.value = '';
+      if (!eventDate.value) return;
+      addEvent(eventTitle.value, eventDate.value, eventTime.value);
+      eventTitle.value = '';
+      eventDate.value = '';
+      eventTime.value = '';
     });
-  }
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', refreshAiSuggestion);
   }
 }
 
@@ -410,15 +437,14 @@ function initForms() {
 function init() {
   updateDateTime();
   setInterval(updateDateTime, 1000);
-
+  initNav();
   fetchWeather();
-  renderTodos();
-  renderGoals();
-  initSettings();
+  renderNotes();
+  renderEmails();
+  renderEvents();
   initForms();
-
-  // Delay AI slightly so weather may be ready
-  setTimeout(refreshAiSuggestion, 1500);
+  initAiAssistant();
+  addAiMessage('Hi! I can add notes or calendar events for you.');
 }
 
 init();

@@ -10,63 +10,126 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="hub">
-    <header class="hub-header">
-      <div class="date-time">
-        <h1 class="date-text" id="dateText">—</h1>
-        <p class="time-text" id="timeText">—</p>
-        <p class="day-meta" id="dayMeta">—</p>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">MB</span>
+        <div>
+          <p class="brand-title">MeadBax Hub</p>
+          <p class="brand-subtitle">Daily workspace</p>
+        </div>
       </div>
-      <button type="button" class="btn-icon btn-settings" id="btnSettings" title="Settings">⚙</button>
-    </header>
+      <nav class="app-nav" id="appNav">
+        <button class="nav-item active" data-app="notes">Notes</button>
+        <button class="nav-item" data-app="email">Email</button>
+        <button class="nav-item" data-app="calendar">Calendar</button>
+        <button class="nav-item" data-app="weather">Weather</button>
+      </nav>
+    </aside>
 
-    <div class="settings-panel hidden" id="settingsPanel">
-      <label>OpenAI API key (optional, for AI suggestions)</label>
-      <input type="password" id="openaiKey" placeholder="sk-..." autocomplete="off" />
-      <button type="button" class="btn btn-small" id="saveSettings">Save</button>
-    </div>
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="date-text" id="dateText">—</h1>
+          <p class="time-text" id="timeText">—</p>
+          <p class="day-meta" id="dayMeta">—</p>
+        </div>
+        <div class="topbar-actions">
+          <span class="chip">Your workspace</span>
+        </div>
+      </header>
 
-    <main class="hub-main">
-      <section class="card weather-card">
-        <h2>Weather</h2>
-        <div class="weather-content" id="weatherContent">
-          <p class="weather-loading" id="weatherLoading">Loading…</p>
-          <div class="weather-details hidden" id="weatherDetails">
-            <span class="weather-temp" id="weatherTemp">—</span>
-            <span class="weather-desc" id="weatherDesc">—</span>
-            <span class="weather-meta" id="weatherMeta">—</span>
+      <section class="panel active" id="panel-notes" data-panel="notes">
+        <div class="panel-header">
+          <h2>Notes</h2>
+          <p>Capture ideas, meeting notes, and quick reminders.</p>
+        </div>
+        <div class="panel-body grid-2">
+          <div class="card">
+            <h3>New note</h3>
+            <form id="noteForm" class="stack">
+              <input type="text" id="noteTitle" placeholder="Note title" />
+              <textarea id="noteBody" rows="6" placeholder="Write something..."></textarea>
+              <button type="submit" class="btn">Save note</button>
+            </form>
+          </div>
+          <div class="card">
+            <h3>Saved notes</h3>
+            <ul class="list" id="noteList"></ul>
           </div>
         </div>
       </section>
 
-      <section class="card todos-card">
-        <h2>Tasks</h2>
-        <form class="todo-form" id="todoForm">
-          <input type="text" id="todoInput" placeholder="Add a task…" autocomplete="off" />
-          <button type="submit" class="btn">Add</button>
-        </form>
-        <ul class="todo-list" id="todoList"></ul>
-      </section>
-
-      <section class="card goals-card">
-        <h2>Goals</h2>
-        <form class="goal-form" id="goalForm">
-          <input type="text" id="goalInput" placeholder="Add a goal…" autocomplete="off" />
-          <button type="submit" class="btn">Add</button>
-        </form>
-        <ul class="goal-list" id="goalList"></ul>
-      </section>
-
-      <section class="card ai-card">
-        <h2>Today’s suggestion</h2>
-        <p class="ai-hint">Based on your tasks, goals, weather & date.</p>
-        <div class="ai-content" id="aiContent">
-          <p class="ai-loading" id="aiLoading">Thinking…</p>
-          <p class="ai-suggestion hidden" id="aiSuggestion">—</p>
+      <section class="panel" id="panel-email" data-panel="email">
+        <div class="panel-header">
+          <h2>Email</h2>
+          <p>Keep track of your latest messages.</p>
         </div>
-        <button type="button" class="btn btn-secondary" id="refreshAi">Refresh suggestion</button>
+        <div class="panel-body">
+          <div class="card">
+            <h3>Inbox</h3>
+            <ul class="list" id="emailList"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-calendar" data-panel="calendar">
+        <div class="panel-header">
+          <h2>Calendar</h2>
+          <p>Plan your schedule and add upcoming events.</p>
+        </div>
+        <div class="panel-body grid-2">
+          <div class="card">
+            <h3>Add event</h3>
+            <form id="eventForm" class="stack">
+              <input type="text" id="eventTitle" placeholder="Event title" />
+              <input type="date" id="eventDate" />
+              <input type="time" id="eventTime" />
+              <button type="submit" class="btn">Add to calendar</button>
+            </form>
+          </div>
+          <div class="card">
+            <h3>Upcoming</h3>
+            <ul class="list" id="eventList"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-weather" data-panel="weather">
+        <div class="panel-header">
+          <h2>Weather</h2>
+          <p>Full weather view for your selected area.</p>
+        </div>
+        <div class="panel-body">
+          <div class="card weather-card">
+            <div class="weather-content" id="weatherContent">
+              <p class="weather-loading" id="weatherLoading">Loading…</p>
+              <div class="weather-details hidden" id="weatherDetails">
+                <span class="weather-temp" id="weatherTemp">—</span>
+                <span class="weather-desc" id="weatherDesc">—</span>
+                <span class="weather-meta" id="weatherMeta">—</span>
+              </div>
+            </div>
+            <div class="weather-extra" id="weatherExtra"></div>
+          </div>
+        </div>
       </section>
     </main>
+
+    <section class="ai-dock" aria-live="polite">
+      <div class="ai-header">
+        <div>
+          <p class="ai-title">AI Assistant</p>
+          <p class="ai-subtitle">Ask anything or say a command</p>
+        </div>
+        <button type="button" class="btn-icon ai-mic" id="aiMic" title="Start voice command">🎙️</button>
+      </div>
+      <div class="ai-messages" id="aiMessages"></div>
+      <form class="ai-input" id="aiForm">
+        <input type="text" id="aiInput" placeholder="Try: Add meeting on Feb 7 at 3pm" />
+        <button type="submit" class="btn">Send</button>
+      </form>
+    </section>
   </div>
   <script src="app.js"></script>
 </body>
