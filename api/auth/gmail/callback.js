@@ -67,6 +67,6 @@ function parseCookies(cookieHeader) {
 
 function redirectToHub(res, baseUrl, success) {
   const path = baseUrl ? `${baseUrl}/hub/` : '/hub/';
-  const url = `${path}${success ? '?gmail=connected' : '?gmail=error'}`;
+  const url = success ? `${path}#email` : `${path}?gmail=error`;
   res.redirect(302, url);
 }

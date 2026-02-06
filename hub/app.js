@@ -510,20 +510,45 @@ function initLocationControls() {
 }
 
 // ——— Navigation ———
+const VALID_PANELS = ['home', 'notes', 'email', 'calendar', 'weather'];
+
+function switchToPanel(target) {
+  if (!VALID_PANELS.includes(target)) return;
+  const nav = document.getElementById('appNav');
+  const panels = document.querySelectorAll('[data-panel]');
+  if (!nav) return;
+  nav.querySelectorAll('.nav-item').forEach((b) => {
+    b.classList.toggle('active', b.dataset.app === target);
+  });
+  panels.forEach((panel) => {
+    panel.classList.toggle('active', panel.dataset.panel === target);
+  });
+}
+
+function getPanelFromHash() {
+  const hash = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+  return VALID_PANELS.includes(hash) ? hash : 'home';
+}
+
 function initNav() {
   const nav = document.getElementById('appNav');
   const panels = document.querySelectorAll('[data-panel]');
   if (!nav) return;
 
+  // Restore panel from URL hash on load (so refresh keeps you on the same page)
+  switchToPanel(getPanelFromHash());
+  document.documentElement.removeAttribute('data-initial-panel');
+
   nav.querySelectorAll('.nav-item').forEach((btn) => {
     btn.addEventListener('click', () => {
-      nav.querySelectorAll('.nav-item').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
       const target = btn.dataset.app;
-      panels.forEach((panel) => {
-        panel.classList.toggle('active', panel.dataset.panel === target);
-      });
+      switchToPanel(target);
+      window.location.hash = target;
     });
+  });
+
+  window.addEventListener('hashchange', () => {
+    switchToPanel(getPanelFromHash());
   });
 }
 
@@ -668,30 +693,24 @@ function getEmailListEl() {
   return document.getElementById('emailList');
 }
 
+let emailPageTokens = [undefined];
+let emailCurrentPage = 1;
+let emailNextPageToken = null;
+let currentEmailList = [];
+
 function showEmailState(loading, connected, showConnectBtn) {
   const loadingEl = document.getElementById('emailLoading');
   const connectBtn = document.getElementById('connectGmailBtn');
   const connectedLabel = document.getElementById('emailConnectedLabel');
   const signOutBtn = document.getElementById('signOutGmailBtn');
   const list = getEmailListEl();
+  const paginationEl = document.getElementById('emailPagination');
   if (loadingEl) loadingEl.style.display = loading ? 'block' : 'none';
   if (connectBtn) connectBtn.style.display = showConnectBtn ? 'inline-flex' : 'none';
   if (connectedLabel) connectedLabel.style.display = connected ? 'inline' : 'none';
   if (signOutBtn) signOutBtn.style.display = connected ? 'inline-flex' : 'none';
   if (list) list.style.display = loading ? 'none' : 'block';
-}
-
-async function signOutGmail() {
-  const signOutBtn = document.getElementById('signOutGmailBtn');
-  if (signOutBtn) signOutBtn.disabled = true;
-  try {
-    await fetch(`${API_BASE}/api/auth/gmail/signout`, { method: 'POST', credentials: 'include' });
-    // Force full reload so the browser drops the cookie and hub loads signed out
-    window.location.href = '/hub/';
-  } catch (_) {
-    if (signOutBtn) signOutBtn.disabled = false;
-    fetchEmails();
-  }
+  if (paginationEl) paginationEl.style.display = connected && !loading ? 'flex' : 'none';
 }
 
 function renderEmailList(emails) {
@@ -701,10 +720,11 @@ function renderEmailList(emails) {
     list.innerHTML = '<li class="email-empty">No messages in inbox.</li>';
     return;
   }
+  currentEmailList = emails;
   list.innerHTML = emails
     .map(
       (email) => `
-      <li class="list-item">
+      <li class="list-item email-list-item" data-email-id="${escapeHtml(String(email.id))}" data-email-subject="${escapeHtml(String(email.subject || ''))}" data-email-sender="${escapeHtml(String(email.sender || ''))}" data-email-time="${escapeHtml(String(email.time || ''))}" role="button" tabindex="0">
         <h4>${escapeHtml(email.subject)}</h4>
         <p>From: ${escapeHtml(email.sender)}</p>
         <span class="meta">${escapeHtml(email.time)}</span>
@@ -712,20 +732,146 @@ function renderEmailList(emails) {
     `
     )
     .join('');
+  list.querySelectorAll('.email-list-item').forEach((el) => {
+    const id = el.dataset.emailId;
+    const listEmail = {
+      id,
+      subject: el.dataset.emailSubject || '',
+      sender: el.dataset.emailSender || '',
+      time: el.dataset.emailTime || '',
+    };
+    el.addEventListener('click', () => openEmailView(id, listEmail));
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEmailView(id, listEmail); } });
+  });
 }
 
-async function fetchEmails() {
+let emailViewOpen = false;
+
+function showInboxList() {
+  const list = getEmailListEl();
+  const view = document.getElementById('emailView');
+  if (list) list.style.display = 'block';
+  if (view) view.style.display = 'none';
+  emailViewOpen = false;
+}
+
+function showEmailView() {
+  const list = getEmailListEl();
+  const view = document.getElementById('emailView');
+  if (list) list.style.display = 'none';
+  if (view) view.style.display = 'block';
+  emailViewOpen = true;
+}
+
+function escapeForSrcdoc(html) {
+  return html
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function openEmailView(id, listEmailFromClick) {
+  if (!id) return;
+  const subjectEl = document.getElementById('emailViewSubject');
+  const fromEl = document.getElementById('emailViewFrom');
+  const dateEl = document.getElementById('emailViewDate');
+  const bodyPlainEl = document.getElementById('emailViewBodyPlain');
+  const bodyHtmlEl = document.getElementById('emailViewBodyHtml');
+  showEmailView();
+
+  const listEmail = listEmailFromClick || currentEmailList.find((e) => String(e.id) === String(id));
+  const subjectFromList = (listEmail && listEmail.subject) ? String(listEmail.subject) : '';
+  const fromFromList = (listEmail && listEmail.sender) ? String(listEmail.sender) : '';
+  const timeFromList = (listEmail && listEmail.time) ? String(listEmail.time) : '';
+
+  if (subjectEl) subjectEl.textContent = subjectFromList || 'Loading…';
+  if (fromEl) fromEl.textContent = fromFromList ? `From: ${fromFromList}` : (subjectFromList ? 'From: —' : '');
+  if (dateEl) dateEl.textContent = timeFromList;
+  if (bodyPlainEl) { bodyPlainEl.style.display = 'none'; bodyPlainEl.textContent = ''; }
+  if (bodyHtmlEl) { bodyHtmlEl.style.display = 'none'; bodyHtmlEl.srcdoc = ''; }
+
+  fetch(`${API_BASE}/api/gmail/message/${encodeURIComponent(id)}`, { credentials: 'include' })
+    .then((res) => res.json().catch(() => ({})))
+    .then((data) => {
+      if (data.error) {
+        if (subjectEl && !subjectFromList) subjectEl.textContent = 'Could not load message';
+        if (fromEl && !fromFromList) fromEl.textContent = data.message || data.error;
+        if (bodyPlainEl) {
+          bodyPlainEl.style.display = 'block';
+          bodyPlainEl.textContent = (data.message || data.error) + ' — showing inbox preview only.';
+        }
+        return;
+      }
+      if (subjectEl) subjectEl.textContent = data.subject || subjectFromList || '(No subject)';
+      if (fromEl) fromEl.textContent = `From: ${data.from || fromFromList || ''}`;
+      if (dateEl) dateEl.textContent = data.date || timeFromList || '';
+      const hasHtml = data.bodyHtml && data.bodyHtml.trim().length > 0;
+      const hasPlain = data.bodyPlain && data.bodyPlain.trim().length > 0;
+      const hasSnippet = data.snippet && data.snippet.trim().length > 0;
+      if (hasHtml) {
+        bodyPlainEl.style.display = 'none';
+        bodyHtmlEl.style.display = 'block';
+        bodyHtmlEl.srcdoc = escapeForSrcdoc(data.bodyHtml);
+      } else if (hasPlain) {
+        bodyPlainEl.style.display = 'block';
+        bodyHtmlEl.style.display = 'none';
+        bodyPlainEl.textContent = data.bodyPlain;
+      } else if (hasSnippet) {
+        bodyPlainEl.style.display = 'block';
+        bodyHtmlEl.style.display = 'none';
+        bodyPlainEl.textContent = data.snippet;
+      } else {
+        bodyPlainEl.style.display = 'block';
+        bodyHtmlEl.style.display = 'none';
+        bodyPlainEl.textContent = '(No content)';
+      }
+    })
+    .catch(() => {
+      if (subjectEl && !subjectFromList) subjectEl.textContent = 'Could not load message';
+      if (fromEl && !fromFromList) fromEl.textContent = 'Check your connection and try again.';
+      if (bodyPlainEl && bodyPlainEl.style.display !== 'block') {
+        bodyPlainEl.style.display = 'block';
+        bodyPlainEl.textContent = 'Could not load body. You are seeing inbox preview only.';
+      }
+    });
+}
+
+function initEmailViewBack() {
+  const backBtn = document.getElementById('emailViewBack');
+  if (backBtn) backBtn.onclick = showInboxList;
+}
+
+function updateEmailPaginationUI() {
+  const prevBtn = document.getElementById('emailPagePrev');
+  const nextBtn = document.getElementById('emailPageNext');
+  const labelEl = document.getElementById('emailPageLabel');
+  if (prevBtn) prevBtn.disabled = emailCurrentPage <= 1;
+  if (nextBtn) nextBtn.disabled = !emailNextPageToken;
+  if (labelEl) {
+    labelEl.textContent = `Page ${emailCurrentPage}`;
+    labelEl.title = emailCurrentPage === 1 ? 'Page 1' : 'Go to page 1';
+  }
+}
+
+async function fetchEmails(pageToken) {
   const list = getEmailListEl();
   showEmailState(true, false, false);
 
+  const url = pageToken
+    ? `${API_BASE}/api/gmail/inbox?pageToken=${encodeURIComponent(pageToken)}`
+    : `${API_BASE}/api/gmail/inbox`;
   try {
-    const res = await fetch(`${API_BASE}/api/gmail/inbox`, { credentials: 'include' });
+    const res = await fetch(url, { credentials: 'include' });
     const data = await res.json().catch(() => ({}));
 
     if (res.status === 401 || (data && data.code === 'NOT_CONNECTED')) {
       showEmailState(false, false, true);
       renderEmailList([]);
       if (list) list.innerHTML = '<li class="email-empty">Connect Gmail to see your inbox.</li>';
+      emailPageTokens = [undefined];
+      emailCurrentPage = 1;
+      emailNextPageToken = null;
       return;
     }
 
@@ -735,25 +881,98 @@ async function fetchEmails() {
       return;
     }
 
+    emailNextPageToken = data.nextPageToken || null;
+    if (pageToken) {
+      if (emailNextPageToken) {
+        while (emailPageTokens.length <= emailCurrentPage) emailPageTokens.push(null);
+        emailPageTokens[emailCurrentPage] = emailNextPageToken;
+      }
+    } else {
+      emailCurrentPage = 1;
+      emailPageTokens[0] = undefined;
+      if (emailNextPageToken) emailPageTokens[1] = emailNextPageToken;
+    }
+
     showEmailState(false, true, false);
     renderEmailList(data.emails || []);
+    updateEmailPaginationUI();
   } catch (_) {
     showEmailState(false, false, true);
     if (list) list.innerHTML = '<li class="email-empty">Cannot reach server. Deploy with API or run locally with <code>vercel dev</code>.</li>';
   }
 }
 
-function initEmailSignOut() {
+function goToEmailPage(direction) {
+  if (direction === 'next') {
+    if (!emailNextPageToken) return;
+    const tokenForNextPage = emailPageTokens[emailCurrentPage];
+    if (!tokenForNextPage) return;
+    emailCurrentPage += 1;
+    fetchEmails(tokenForNextPage);
+  } else {
+    if (emailCurrentPage <= 1) return;
+    emailCurrentPage -= 1;
+    const pageToken = emailCurrentPage === 1 ? undefined : emailPageTokens[emailCurrentPage - 1];
+    fetchEmails(pageToken);
+  }
+}
+
+function initEmailPagination() {
+  const panel = document.getElementById('panel-email');
+  if (!panel) return;
+  panel.addEventListener('click', (e) => {
+    const target = e.target.closest('button');
+    if (!target) return;
+    if (target.id === 'emailPagePrev') {
+      e.preventDefault();
+      goToEmailPage('prev');
+    } else if (target.id === 'emailPageNext') {
+      e.preventDefault();
+      goToEmailPage('next');
+    } else if (target.id === 'emailPageLabel' && emailCurrentPage > 1) {
+      e.preventDefault();
+      emailCurrentPage = 1;
+      fetchEmails(undefined);
+    }
+  });
+}
+
+function signOutGmail() {
   const signOutBtn = document.getElementById('signOutGmailBtn');
-  if (signOutBtn) signOutBtn.addEventListener('click', signOutGmail);
+  const list = getEmailListEl();
+  if (signOutBtn) {
+    signOutBtn.disabled = true;
+    signOutBtn.textContent = 'Signing out…';
+  }
+  fetch(`${API_BASE}/api/auth/gmail/signout`, { method: 'GET', credentials: 'include' })
+    .then(() => {
+      showEmailState(false, false, true);
+      if (list) list.innerHTML = '<li class="email-empty">Connect Gmail to see your inbox.</li>';
+    })
+    .catch(() => {
+      showEmailState(false, false, true);
+      if (list) list.innerHTML = '<li class="email-empty">Connect Gmail to see your inbox.</li>';
+    })
+    .finally(() => {
+      if (signOutBtn) {
+        signOutBtn.disabled = false;
+        signOutBtn.textContent = 'Sign out';
+      }
+    });
 }
 
 function renderEmails() {
+  showInboxList();
   fetchEmails();
+  const signOutBtn = document.getElementById('signOutGmailBtn');
+  if (signOutBtn) signOutBtn.onclick = signOutGmail;
+  initEmailViewBack();
+  initEmailPagination();
 }
 
 // ——— Calendar ———
 let calendarViewDate = new Date();
+let selectedCalendarDate = '';
 
 function getEvents() {
   try {
@@ -795,6 +1014,12 @@ function toDateStr(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+function getSelectedDateStr() {
+  if (selectedCalendarDate) return selectedCalendarDate;
+  selectedCalendarDate = toDateStr(new Date());
+  return selectedCalendarDate;
+}
+
 function renderCalendar() {
   const grid = document.getElementById('calendarGrid');
   const monthYearEl = document.getElementById('calendarMonthYear');
@@ -813,13 +1038,16 @@ function renderCalendar() {
 
   const totalCells = Math.ceil((startDay + daysInMonth) / 7) * 7;
   const leadingEmpty = startDay;
+  const prevMonthLast = new Date(year, month, 0);
+  const daysInPrevMonth = prevMonthLast.getDate();
 
   grid.innerHTML = '';
 
   for (let i = 0; i < leadingEmpty; i++) {
+    const day = daysInPrevMonth - leadingEmpty + 1 + i;
     const cell = document.createElement('div');
     cell.className = 'calendar-day calendar-day-other';
-    cell.textContent = '';
+    cell.innerHTML = `<span class="calendar-day-num">${day}</span>`;
     grid.appendChild(cell);
   }
 
@@ -827,19 +1055,24 @@ function renderCalendar() {
     const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
     const eventsOnDay = getEventsForDate(dateStr);
     const isToday = dateStr === todayStr;
+    const isSelected = dateStr === getSelectedDateStr();
 
     const cell = document.createElement('div');
     cell.className = 'calendar-day';
     if (isToday) cell.classList.add('calendar-day-today');
+    if (isSelected) cell.classList.add('calendar-day-selected');
     if (eventsOnDay.length > 0) cell.classList.add('calendar-day-has-events');
     cell.dataset.date = dateStr;
     cell.innerHTML = `
       <span class="calendar-day-num">${day}</span>
-      ${eventsOnDay.length > 0 ? `<span class="calendar-day-dot" title="${eventsOnDay.length} event(s)">${eventsOnDay.length}</span>` : ''}
+      ${eventsOnDay.length > 0 ? `<span class="calendar-day-dot" title="${eventsOnDay.length} event(s)"></span>` : ''}
     `;
     cell.addEventListener('click', () => {
+      selectedCalendarDate = dateStr;
       const dateInput = document.getElementById('eventDate');
       if (dateInput) dateInput.value = dateStr;
+      renderCalendar();
+      renderEvents();
     });
     grid.appendChild(cell);
   }
@@ -847,9 +1080,10 @@ function renderCalendar() {
   const filled = leadingEmpty + daysInMonth;
   const trailing = totalCells - filled;
   for (let i = 0; i < trailing; i++) {
+    const day = i + 1;
     const cell = document.createElement('div');
     cell.className = 'calendar-day calendar-day-other';
-    cell.textContent = '';
+    cell.innerHTML = `<span class="calendar-day-num">${day}</span>`;
     grid.appendChild(cell);
   }
 }
@@ -870,63 +1104,37 @@ function getThisWeekDateStrs() {
 
 function renderEvents() {
   const list = document.getElementById('eventList');
+  const heading = document.getElementById('eventListHeading');
   if (!list) return;
 
-  const weekDays = getThisWeekDateStrs();
+  const dateStr = getSelectedDateStr();
   const todayStr = toDateStr(new Date());
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = toDateStr(tomorrow);
-
-  const events = getEvents()
-    .filter((e) => weekDays.includes(e.date))
+  const dayEvents = getEvents()
+    .filter((e) => e.date === dateStr)
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
 
-  const dayLabels = {};
-  weekDays.forEach((dateStr) => {
-    if (dateStr === todayStr) dayLabels[dateStr] = 'Today';
-    else if (dateStr === tomorrowStr) dayLabels[dateStr] = 'Tomorrow';
-    else {
-      const d = new Date(dateStr);
-      dayLabels[dateStr] = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    }
-  });
+  if (heading) {
+    heading.textContent = dateStr === todayStr ? 'Events Today' : `Events for ${new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`;
+  }
 
-  const byDay = {};
-  weekDays.forEach((dateStr) => (byDay[dateStr] = []));
-  events.forEach((e) => byDay[e.date].push(e));
-
-  list.innerHTML = weekDays
-    .filter((dateStr) => byDay[dateStr].length > 0)
-    .map(
-      (dateStr) => {
-        const dayEvents = byDay[dateStr];
-        const label = dayLabels[dateStr];
-        return `
-          <li class="calendar-upcoming-day">
-            <span class="calendar-upcoming-label">${escapeHtml(label)}</span>
-            <ul class="list list-compact">
-              ${dayEvents
-                .map(
-                  (ev) => `
-                <li class="list-item list-item-compact">
-                  <span class="event-title">${escapeHtml(ev.title)}</span>
-                  <span class="meta">${ev.time ? escapeHtml(ev.time) : 'All day'}</span>
-                  <button class="btn-remove" data-id="${ev.id}">Remove</button>
-                </li>
-              `
-                )
-                .join('')}
-            </ul>
-          </li>
-        `;
-      }
-    )
-    .join('');
-
-  list.querySelectorAll('.btn-remove').forEach((btn) => {
-    btn.addEventListener('click', () => removeEvent(Number(btn.dataset.id)));
-  });
+  if (dayEvents.length === 0) {
+    list.innerHTML = '<li class="calendar-upcoming-empty">No events for this day.</li>';
+  } else {
+    list.innerHTML = dayEvents
+      .map(
+        (ev) => `
+        <li class="list-item list-item-compact">
+          <span class="event-title">${escapeHtml(ev.title)}</span>
+          <span class="meta">${ev.time ? escapeHtml(ev.time) : 'All day'}</span>
+          <button class="btn-remove" data-id="${ev.id}">Remove</button>
+        </li>
+      `
+      )
+      .join('');
+    list.querySelectorAll('.btn-remove').forEach((btn) => {
+      btn.addEventListener('click', () => removeEvent(Number(btn.dataset.id)));
+    });
+  }
 }
 
 function formatEventDate(dateStr, timeStr) {
@@ -1170,11 +1378,12 @@ function initForms() {
   if (eventForm) {
     eventForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (!eventDate.value) return;
-      addEvent(eventTitle.value, eventDate.value, eventTime.value);
+      const date = eventDate.value;
+      if (!date) return;
+      addEvent(eventTitle.value, date, eventTime.value);
       eventTitle.value = '';
-      eventDate.value = '';
       eventTime.value = '';
+      eventDate.value = date;
     });
   }
 }
@@ -1189,13 +1398,15 @@ function init() {
   scheduleHourlyWeatherRefresh();
   renderNotes();
   renderEmails();
-  initEmailSignOut();
   const gmailParam = new URLSearchParams(window.location.search).get('gmail');
   if (gmailParam === 'connected') {
     fetchEmails();
     const url = window.location.pathname + (window.location.hash || '');
     window.history.replaceState({}, '', url);
   }
+  if (!selectedCalendarDate) selectedCalendarDate = toDateStr(new Date());
+  const eventDateInput = document.getElementById('eventDate');
+  if (eventDateInput && !eventDateInput.value) eventDateInput.value = selectedCalendarDate;
   renderCalendar();
   renderEvents();
   renderQuoteOfTheDay();

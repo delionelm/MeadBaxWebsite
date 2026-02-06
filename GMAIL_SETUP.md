@@ -20,6 +20,8 @@ The hub can show your real Gmail inbox in the **Email** section. To enable it yo
      - Production: `https://YOUR_DOMAIN.vercel.app/api/auth/gmail/callback`
 5. Copy the **Client ID** and **Client secret**; you’ll use them as env vars.
 
+**Allow more Gmail addresses (Testing mode):** If your app is in **Testing** status, only accounts listed as **Test users** can sign in. To allow another address: **APIs & Services** → **OAuth consent screen** → scroll to **Test users** → **+ ADD USERS** → add the Gmail address → Save. To allow any Gmail user without adding each one, you’d need to **Publish** the app (and may need to complete Google’s verification for sensitive scopes).
+
 ## 2. Environment variables
 
 Set these where the API runs (e.g. Vercel project settings):
@@ -62,3 +64,5 @@ If you only serve the `hub` folder (e.g. plain static host or `python -m http.se
 - Only **you** connect **your** Gmail; the app uses read-only scope (`gmail.readonly`).
 - The refresh token is stored in an **HttpOnly cookie** so JavaScript cannot read it; only your API can use it to fetch emails.
 - Do not commit `.env` or share your client secret.
+
+**Showing email content:** HTML bodies are rendered in a **sandboxed iframe** (no scripts run). Plain text is shown with `textContent` so it cannot execute code. Links inside HTML emails still work; be cautious with links in emails (phishing). The app does not sanitize HTML—it is your own mailbox, but if you forward or open untrusted messages, treat links and content with normal care.

@@ -57,12 +57,15 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    const pageToken = (req.query && req.query.pageToken) || null;
     const listRes = await gmail.users.messages.list({
       userId: 'me',
       maxResults: MAX_RESULTS,
       q: 'in:inbox',
+      pageToken: pageToken || undefined,
     });
     const messages = listRes.data.messages || [];
+    const nextPageToken = listRes.data.nextPageToken || null;
     const emails = [];
 
     for (let i = 0; i < Math.min(messages.length, 15); i++) {
@@ -90,7 +93,7 @@ module.exports = async function handler(req, res) {
     }
 
     res.setHeader('Cache-Control', 'private, max-age=60');
-    return res.status(200).json({ emails });
+    return res.status(200).json({ emails, nextPageToken });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to fetch inbox', message: err.message });
   }

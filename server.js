@@ -15,12 +15,13 @@ const authGmail = require('./api/auth/gmail');
 const authGmailCallback = require('./api/auth/gmail/callback');
 const authGmailSignout = require('./api/auth/gmail/signout');
 const gmailInbox = require('./api/gmail/inbox');
+const gmailMessage = require('./api/gmail/message');
 
 app.get('/api/auth/gmail', (req, res) => authGmail(req, res));
 app.get('/api/auth/gmail/callback', (req, res) => authGmailCallback(req, res));
 app.get('/api/auth/gmail/signout', (req, res) => authGmailSignout(req, res));
-app.post('/api/auth/gmail/signout', (req, res) => authGmailSignout(req, res));
 app.get('/api/gmail/inbox', (req, res) => gmailInbox(req, res));
+app.get('/api/gmail/message/:id', (req, res) => gmailMessage(req, res));
 
 // Static files: root and hub
 app.use(express.static(path.join(__dirname)));

@@ -10,6 +10,13 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <script>
+    (function() {
+      var h = (window.location.hash || '#home').replace(/^#/, '').toLowerCase();
+      var valid = ['home', 'notes', 'email', 'calendar', 'weather'];
+      document.documentElement.dataset.initialPanel = valid.indexOf(h) >= 0 ? h : 'home';
+    })();
+  </script>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
@@ -91,7 +98,26 @@
               </div>
             </div>
             <div class="email-loading" id="emailLoading">Loading…</div>
+            <div class="email-pagination" id="emailPagination" style="display: none;">
+              <button type="button" class="btn btn-page" id="emailPagePrev" disabled>← Previous</button>
+              <button type="button" class="btn btn-page-label" id="emailPageLabel" title="Go to page 1">Page 1</button>
+              <button type="button" class="btn btn-page" id="emailPageNext">Next →</button>
+            </div>
             <ul class="list" id="emailList"></ul>
+            <div class="email-view" id="emailView" style="display: none;">
+              <div class="email-view-header">
+                <button type="button" class="btn btn-back-inbox" id="emailViewBack">← Back to inbox</button>
+              </div>
+              <div class="email-view-meta">
+                <h3 class="email-view-subject" id="emailViewSubject"></h3>
+                <p class="email-view-from" id="emailViewFrom"></p>
+                <p class="email-view-date" id="emailViewDate"></p>
+              </div>
+              <div class="email-view-body-wrap">
+                <div class="email-view-body-plain" id="emailViewBodyPlain"></div>
+                <iframe class="email-view-body-html" id="emailViewBodyHtml" sandbox="sandbox" title="Email content"></iframe>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -124,8 +150,7 @@
               </form>
             </div>
             <div class="card">
-              <h3>This Week</h3>
-              <p class="card-desc">Reminders for this week.</p>
+              <h3 id="eventListHeading">Events Today</h3>
               <ul class="list" id="eventList"></ul>
             </div>
           </div>
